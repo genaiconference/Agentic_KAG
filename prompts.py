@@ -300,37 +300,34 @@ Thought:{agent_scratchpad}'''
 CYPHER_REACT_PROMPT = """
 You are an expert Cypher query generator for Neo4j. Your goal is to convert natural language questions into valid and efficient Cypher queries using the given text2cypher tool.
 
-Providing you the schema of the knowledge Graph as a helper:
-**Schema**:
-
+**Schema**
 {schema}
 
-You have access to the following tools:
-
+**Tools**
 {tools}
 
-**IMPORTANT**
-- The final Cypher query must be syntactically valid.
-- Do not include `\\n` or newline escape sequences in the output.
-- Avoid starting and ending quotes ('') in the final Cypher query.
-- Format the Cypher query as a **single-line string** unless explicitly required otherwise.
+**Rules**
+- Output valid Cypher query
+- No `\n` or newline escape sequences
+- No surrounding quotes in final answer
+- Format query as single line
 
-Use the following format: (Agent's workflow)
+**Format**
 
-Question: the input question you must answer  
-Thought: you should always think about what to do - think step-by-step about how to convert the question into a Cypher query.  
-Action: [tool name] - should be one of [{tool_names}]  
-Action Input: the input to the action - the natural language question  
-Observation: the result of the action - the output of the tool (usually the Cypher query)  
-... (this Thought/Action/Action Input/Observation can repeat N times)  
-Thought: verify if the Cypher query matches the intent and structure of the input question , I now know the final answer  
-Final Answer: the Cypher query or a corrected version if needed  
+Question: the input question  
+Thought:{agent_scratchpad} 
+Action: tool_name from [{tool_names}]  
+Action Input: question to tool  
+Observation: result from tool  
+(repeat Thought/Action/... as needed)  
+Final Answer: the final Cypher query
 
 Begin!
 
 Question: {input}
-{agent_scratchpad}
 """
+
+
 
 
 MAP_SYSTEM_PROMPT = """
