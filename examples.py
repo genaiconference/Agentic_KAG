@@ -51,9 +51,9 @@ examples = [
     # Participation & Nomination
     "USER INPUT: 'Who participated in the conference?'\nQUERY: MATCH (p:Person)-[:PARTICIPATES_IN]->(:Conference) RETURN p.name",
     "USER INPUT: 'Who nominated people for the AI Innovator Award?'\nQUERY: MATCH (p:Person)-[:NOMINATES]->(a:Award {title: 'AI Innovator Award'}) RETURN p.name",
-    "USER INPUT: 'List people and the sessions they attended.'\nQUERY: MATCH (p:Person)-[:ATTENDS]->(s:Session) RETURN p.name, s.title"
+    "USER INPUT: 'List people and the sessions they attended.'\nQUERY: MATCH (p:Person)-[:ATTENDS]->(s:Session) RETURN p.name, s.title",
 
     # Likes of Users
-    "USER INPUT: 'I am a big lover of AI agents and I am interested in putting things in production. Suggest me a tailor made agenda, mention the name of the Session or workshop along with Instructor name?'\nQUERY: MATCH (s)-[:COVERS]->(t:Topic) WHERE toLower(t.name) CONTAINS 'agent' OR toLower(t.name) CONTAINS 'production' OPTIONAL MATCH (s)<-[:PRESENTS|CONDUCTS]-(p:Person) RETURN s.title AS session_or_workshop, p.name AS instructor_or_speaker
+    "USER INPUT: 'I am a big lover of AI agents and I am interested in putting things in production. Suggest me a tailor made agenda, mention the name of the Session or workshop along with Instructor name?'\nQUERY: MATCH (s)-[:COVERS]->(t:Topic) WHERE toLower(t.name) CONTAINS 'agent' OR toLower(t.name) CONTAINS 'production' OPTIONAL MATCH (s)<-[:PRESENTS|CONDUCTS]-(p:Person) RETURN s.title AS session_or_workshop, p.name AS instructor_or_speaker"
 
-
+]
