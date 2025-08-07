@@ -53,57 +53,7 @@ examples = [
     "USER INPUT: 'Who nominated people for the AI Innovator Award?'\nQUERY: MATCH (p:Person)-[:NOMINATES]->(a:Award {title: 'AI Innovator Award'}) RETURN p.name",
     "USER INPUT: 'List people and the sessions they attended.'\nQUERY: MATCH (p:Person)-[:ATTENDS]->(s:Session) RETURN p.name, s.title"
 
-    # 6. Time and Speaker-Specific Session Queries
-"USER INPUT: 'When is Arun delivering a session?'\nQUERY: MATCH (p:Person {name: 'Arun'})-[:PRESENTS]->(s:Session) RETURN s.title, s.start_time, s.day, s.date",
+    # Likes of Users
+    "USER INPUT: 'I am a big lover of AI agents and I am interested in putting things in production. Suggest me a tailor made agenda, mention the name of the Session or workshop along with Instructor name?'\nQUERY: MATCH (s)-[:COVERS]->(t:Topic) WHERE toLower(t.name) CONTAINS 'agent' OR toLower(t.name) CONTAINS 'production' OPTIONAL MATCH (s)<-[:PRESENTS|CONDUCTS]-(p:Person) RETURN s.title AS session_or_workshop, p.name AS instructor_or_speaker
 
-"USER INPUT: 'Give me all the sessions that happen between 12:00 and 13:00 on Day 1.'\nQUERY: MATCH (s:Session) WHERE s.day = 'Day 1' AND s.start_time >= time('12:00') AND s.start_time < time('13:00') RETURN s.title, s.start_time, s.venue",
-
-"USER INPUT: 'In which auditorium should I attend Arun\'s session?'\nQUERY: MATCH (p:Person {name: 'Arun'})-[:PRESENTS]->(s:Session)-[:HOSTED_AT]->(v:Venue) RETURN s.title, v.name",
-
-"USER INPUT: 'I like only sessions related to knowledge graphs. Tell me when and where and who is delivering such sessions.'\nQUERY: MATCH (s:Session)-[:COVERS]->(t:Topic) WHERE toLower(t.name) CONTAINS 'knowledge graph' MATCH (s)<-[:PRESENTS]-(p:Person) OPTIONAL MATCH (s)-[:HOSTED_AT]->(v:Venue) RETURN s.title, s.start_time, s.day, v.name AS venue, p.name AS speaker",
-
-
-    # 7. Speaker + Time Reasoning
-"USER INPUT: 'When is Priya conducting her workshop?'\nQUERY: MATCH (p:Person {name: 'Priya'})-[:CONDUCTS]->(w:Workshop) RETURN w.title, w.start_time, w.duration",
-
-# 8. Tool + Topic Filtering
-"USER INPUT: 'List all sessions that cover LLMs and use LangChain.'\nQUERY: MATCH (s:Session)-[:COVERS]->(t:Topic {name: 'LLMs'}) MATCH (s)-[:USES]->(tool:Tool {name: 'LangChain'}) RETURN s.title, s.start_time",
-
-# 9. Multi-hop Reasoning
-"USER INPUT: 'Which companies are the speakers of Generative AI sessions affiliated with?'\nQUERY: MATCH (p:Person)-[:PRESENTS]->(s:Session)-[:COVERS]->(t:Topic {name: 'Generative AI'}) MATCH (p)-[:WORKS_FOR]->(c:Company) RETURN DISTINCT p.name, c.name",
-
-# 10. Workshop vs Session Comparison
-"USER INPUT: 'Which tools are used both in workshops and sessions?'\nQUERY: MATCH (w:Workshop)-[:USES]->(t:Tool)<-[:USES]-(s:Session) RETURN DISTINCT t.name",
-
-# 11. Venue-Time Planning
-"USER INPUT: 'What sessions are happening in ELON after 2 PM on Day 2?'\nQUERY: MATCH (s:Session)-[:HOSTED_AT]->(v:Venue {name: 'ELON'}) WHERE s.day = 'Day 2' AND s.start_time > time('14:00') RETURN s.title, s.start_time",
-
-# 12. Topic Popularity
-"USER INPUT: 'Which topics are most frequently covered in sessions?'\nQUERY: MATCH (s:Session)-[:COVERS]->(t:Topic) RETURN t.name, COUNT(s) AS session_count ORDER BY session_count DESC",
-
-# 13. Speaker Session Count
-"USER INPUT: 'Which speakers are giving more than one session?'\nQUERY: MATCH (p:Person)-[:PRESENTS]->(s:Session) WITH p, COUNT(s) AS num_sessions WHERE num_sessions > 1 RETURN p.name, num_sessions",
-
-# 14. Venue Load
-"USER INPUT: 'How many sessions are hosted in each venue?'\nQUERY: MATCH (s:Session)-[:HOSTED_AT]->(v:Venue) RETURN v.name, COUNT(s) AS session_count ORDER BY session_count DESC",
-
-# 15. Company Presence
-"USER INPUT: 'Which companies have more than 2 employees attending sessions?'\nQUERY: MATCH (p:Person)-[:WORKS_FOR]->(c:Company) MATCH (p)-[:ATTENDS]->(s:Session) WITH c, COUNT(DISTINCT p) AS attendees WHERE attendees > 2 RETURN c.name, attendees",
-
-# 16. Cross-Affiliations
-"USER INPUT: 'Which universities are represented by people attending the summit?'\nQUERY: MATCH (p:Person)-[:AFFILIATED_WITH]->(u:University) RETURN DISTINCT u.name",
-
-# 17. Day-wise Session Breakdown
-"USER INPUT: 'How many sessions happen each day?'\nQUERY: MATCH (s:Session) RETURN s.day, COUNT(s) AS session_count ORDER BY s.day",
-
-# 18. Advanced Filtering
-"USER INPUT: 'List advanced sessions on day 3 that use PyTorch.'\nQUERY: MATCH (s:Session) WHERE s.level = 'Advanced' AND s.day = 'Day 3' MATCH (s)-[:USES]->(t:Tool {name: 'PyTorch'}) RETURN s.title, s.start_time, s.venue",
-
-# 19. Instructor Participation
-"USER INPUT: 'Does every workshop instructor also present a session?'\nQUERY: MATCH (p:Person)-[:CONDUCTS]->(w:Workshop) OPTIONAL MATCH (p)-[:PRESENTS]->(s:Session) RETURN p.name, COUNT(w) AS num_workshops, COUNT(s) AS num_sessions",
-
-# 20. Tool Usage Trends
-"USER INPUT: 'Which tools are most used across all sessions and workshops?'\nQUERY: MATCH (n)-[:USES]->(t:Tool) RETURN t.name, COUNT(*) AS usage_count ORDER BY usage_count DESC",
-
-]
 
