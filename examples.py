@@ -34,10 +34,6 @@ examples = [
     "USER INPUT: 'Which workshops use PyTorch?'\nQUERY: MATCH (w:Workshop)-[:USES]->(t:Tool {name: 'PyTorch'}) RETURN w.title",
     "USER INPUT: 'What sessions use LangChain?'\nQUERY: MATCH (s:Session)-[:USES]->(t:Tool {name: 'LangChain'}) RETURN s.title",
 
-    # Awards
-    "USER INPUT: 'Who won the Best Open Source Contribution award?'\nQUERY: MATCH (p:Person)-[:WINS]->(a:Award {title: 'Best Open Source Contribution'}) RETURN p.name",
-    "USER INPUT: 'List all award categories featured in the conference.'\nQUERY: MATCH (:Conference)-[:FEATURES]->(a:Award) RETURN DISTINCT a.category",
-
     # Sponsors & Companies
     "USER INPUT: 'Show all sponsors of the conference.'\nQUERY: MATCH (s:Sponsor)-[:SPONSORS]->(:Conference) RETURN s.name, s.level",
     "USER INPUT: 'Which companies employ people attending the conference?'\nQUERY: MATCH (p:Person)-[:WORKS_FOR]->(c:Company) RETURN DISTINCT c.name",
@@ -47,13 +43,4 @@ examples = [
     "USER INPUT: 'What sessions does the conference host?'\nQUERY: MATCH (:Conference)-[:HOSTS]->(s:Session) RETURN s.title",
     "USER INPUT: 'What workshops are hosted by the DataHack Summit 2025?'\nQUERY: MATCH (c:Conference {name: 'DataHack Summit', year: 2025})-[:HOSTS]->(w:Workshop) RETURN w.title",
     "USER INPUT: 'What is the theme of the 2025 conference?'\nQUERY: MATCH (c:Conference {year: 2025}) RETURN c.theme",
-
-    # Participation & Nomination
-    "USER INPUT: 'Who participated in the conference?'\nQUERY: MATCH (p:Person)-[:PARTICIPATES_IN]->(:Conference) RETURN p.name",
-    "USER INPUT: 'Who nominated people for the AI Innovator Award?'\nQUERY: MATCH (p:Person)-[:NOMINATES]->(a:Award {title: 'AI Innovator Award'}) RETURN p.name",
-    "USER INPUT: 'List people and the sessions they attended.'\nQUERY: MATCH (p:Person)-[:ATTENDS]->(s:Session) RETURN p.name, s.title",
-
-    # Likes of Users
-    "USER INPUT: 'I am a big lover of AI agents and I am interested in putting things in production. Suggest me a tailor made agenda, mention the name of the Session or workshop along with Instructor name?'\nQUERY: MATCH (s)-[:COVERS]->(t:Topic) WHERE toLower(t.name) CONTAINS 'agent' OR toLower(t.name) CONTAINS 'production' OPTIONAL MATCH (s)<-[:PRESENTS|CONDUCTS]-(p:Person) RETURN s.title AS session_or_workshop, p.name AS instructor_or_speaker"
-
 ]
