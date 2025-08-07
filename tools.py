@@ -121,19 +121,14 @@ def generate_cypher_query(query):
     cypher_agent = agent_utils.get_react_agent(
         lang_llm,
         [text2cypher_tool],
-        prompts.CYPHER_REACT_PROMPT + "\n\nOutput the Cypher query as a JSON object with the key 'cypher'.",
-        verbose=True
-    )
+        prompts.CYPHER_REACT_PROMPT,
+        verbose=True)
+
     cypher_result = cypher_agent.invoke({
         "input": query,
         "schema": get_schema(driver)
     })
-    try:
-        parsed_output = json.loads(cypher_result["output"].strip())
-        cypher_query = parsed_output.get("cypher", "").strip().strip("'\"")
-    except json.JSONDecodeError:
-        print("Warning: Cypher agent output was not valid JSON. Using raw output.")
-        cypher_query = cypher_result["output"].strip().strip("'\"")
+    cypher_query = cypher_result["output"].strip().strip("'\"")
     return cypher_query
 
 
