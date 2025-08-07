@@ -160,8 +160,8 @@ def get_rag_for_query(query: str):
         response_fallback="I can't answer this question without context"
     )
     # Debug all context items
-    for i, item in enumerate(response.retriever_result.items, 1):
-        print(f"🔎 Context Item {i}:\n📄 {item.content}\n📘 {item.metadata}\n---\n")
+    # for i, item in enumerate(response.retriever_result.items, 1):
+    #     print(f"🔎 Context Item {i}:\n📄 {item.content}\n📘 {item.metadata}\n---\n")
     
     return response.answer
 
@@ -315,3 +315,4 @@ local_retriever_tool = Tool(
                 "Input should be the query string."
             ),
         )
+
