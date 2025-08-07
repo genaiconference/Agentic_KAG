@@ -99,59 +99,91 @@ def result_formatter_dynamic(record):
     )
 
 # --- Define Hybrid Retrieval Tool ---
-class AVHybridRetriever:
-    """A class to handle hybrid retrieval for Analytics Vidhya data."""
-    def __init__(self, driver, embedder, llm):
-        self.driver = driver
-        self.embedder = embedder
-        self.llm = llm
+import json
 
-    def retrieve(self, query: str, cypher_query: str):
-        hyb_retriever = HybridCypherRetriever(
-            driver=self.driver,
-            vector_index_name=INDEX_NAME,
-            fulltext_index_name=FULLTEXT_INDEX_NAME,
-            retrieval_query=cypher_query,
-            embedder=self.embedder,
-            result_formatter=result_formatter_dynamic,
-        )
+def result_formatter_dynamic(record):
+    data = record.data()
+    if len(data) == 1 and isinstance(list(data.values())[0], dict):
+        node_props = dict(list(data.values())[0])
+    else:
+        node_props = dict(data)
+    content = "\n".join(f"{k}: {v}" for k, v in node_props.items())
 
-        custom_template = RagTemplate(template=prompts.rag_prompt,
-                                      expected_inputs=["context", "query_text"],
-                                     )
+    return RetrieverResultItem(
+        content=content.strip(),
+        metadata={
+            "raw_properties": node_props,
+            "score": record.get("score"),
+            "node_keys": list(node_props.keys())
+        }
+    )
 
-        rag_obj = GraphRAG(retriever=hyb_retriever, llm=self.llm, prompt_template=custom_template)
+def generate_cypher_query(query):
+    """
+    Generate Cypher using the Text2Cypher tool
+    """
+    cypher_agent = get_react_agent(
+        llm,
+        [text2cypher_tool],
+        prompts.CYPHER_REACT_PROMPT + "\n\nOutput the Cypher query as a JSON object with the key 'cypher'.",
+        verbose=True
+    )
+    cypher_result = cypher_agent.invoke({
+        "input": query,
+        "schema": get_schema(driver)
+    })
+    try:
+        parsed_output = json.loads(cypher_result["output"].strip())
+        cypher_query = parsed_output.get("cypher", "").strip().strip("'\"")
+    except json.JSONDecodeError:
+        print("Warning: Cypher agent output was not valid JSON. Using raw output.")
+        cypher_query = cypher_result["output"].strip().strip("'\"")
+    return cypher_query
 
-        response = rag_obj.search(
-            query,
-            return_context=True,
-            retriever_config={'top_k': 20},
-            response_fallback="I can't answer this question without context"
-        )
-        return response.answer
 
-class AVHybridTool(Tool):
-    """LangChain Tool for the AVHybridRetriever."""
-    def __init__(self, retriever):
-        self.retriever = retriever
-        super().__init__(
-            name="AVVectorRetrieval",
-            func=self._run,
-            description=(
-                "Use this tool to answer questions about the Analytics Vidhya DataHack Summit. "
-                "Input should be a JSON object with 'query' and 'cypher_query' keys, e.g.: "
-                '{"query": "List speakers", "cypher_query": "MATCH (s:Speaker)..."}'
-            ),
-        )
+def get_rag_for_query(query: str):
+    """
+    Wrapper to generate a Rag object dynamically for each query
+    """
+    cypher_query = generate_cypher_query(query)
+    hyb_retriever = HybridCypherRetriever(
+        driver=driver,
+        vector_index_name=INDEX_NAME,
+        fulltext_index_name=FULLTEXT_INDEX_NAME,
+        retrieval_query=cypher_query,
+        embedder=embedder,
+        result_formatter=result_formatter_dynamic,
+    )
 
-    def _run(self, input_str: str) -> str:
-        try:
-            parsed = json.loads(input_str)
-            query = parsed["query"]
-            cypher_query = parsed["cypher_query"]
-            return self.retriever.retrieve(query, cypher_query)
-        except Exception as e:
-            return f"Failed to parse input: {e}"
+    custom_template = RagTemplate(template=prompts.rag_prompt,
+                                    expected_inputs=["context", "query_text"],
+                                )
+
+    rag_obj = GraphRAG(retriever=hyb_retriever, llm=llm, prompt_template=custom_template)
+    
+    response = rag_obj.search(
+        query,
+        #message_history=history,
+        return_context=True,
+        retriever_config={'top_k': 20},
+        response_fallback="I can't answer this question without context"
+    )
+    # Debug all context items
+    for i, item in enumerate(response.retriever_result.items, 1):
+        print(f"🔎 Context Item {i}:\n📄 {item.content}\n📘 {item.metadata}\n---\n")
+    
+    return response.answer
+
+
+av_hybrid_tool = Tool(
+    name="AVVectorRetrieval",
+    func=get_rag_for_query,
+    description=(
+        "Automatically generates Cypher queries from a natural language question and retrieves knowledge. "
+        "Choose this tool when the question needs structured graph search or entity-relational reasoning. "
+        "Input: a plain English question, e.g.: 'List all speakers at the conference.'"
+    )
+)
 
 
 def get_map_system_prompt(context):
