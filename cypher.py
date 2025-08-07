@@ -80,7 +80,7 @@ RETURN {Chunks: text_mapping, Reports: report_mapping,
 # Cypher to add entity_id where missing
 cypher_add_entity_id = """
 MATCH (n:__Entity__)
-WHERE NOT exists(n.entity_id)
+WHERE n.entity_id IS NULL
 SET n.entity_id = randomUUID()
 RETURN count(n) AS updated_count
 """
@@ -88,4 +88,5 @@ RETURN count(n) AS updated_count
 constraint_query = """CREATE CONSTRAINT unique_entity_id IF NOT EXISTS
 ON (n:__Entity__)
 ASSERT n.entity_id IS UNIQUE"""
+
 
