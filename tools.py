@@ -8,6 +8,7 @@ from neo4j_graphrag.generation import GraphRAG, RagTemplate
 from langchain.tools import Tool
 import prompts
 import cypher
+import agent_utils
 import json
 from langchain_core.tools import tool
 from langchain_core.runnables import RunnableLambda
@@ -15,6 +16,8 @@ from tqdm.auto import tqdm
 from IPython.display import Markdown
 from openai import OpenAI
 from langchain_openai import ChatOpenAI
+from neo4j_graphrag.llm import OpenAILLM
+from neo4j_graphrag.embeddings import OpenAIEmbeddings
 from dotenv import load_dotenv
 import os
 
@@ -49,13 +52,6 @@ llm = OpenAILLM(
     model_params={"temperature": 0}
 )
 
-json_llm = OpenAILLM(
-    model_name="gpt-4.1",
-    model_params={"temperature": 0,
-                  "response_format": {"type": "json_object"}
-                  }
-)
-
 embedder = OpenAIEmbeddings(
     model="text-embedding-3-small"
 )
@@ -72,7 +68,7 @@ def text2cypher_tool(query: str) -> str:
     """Convert natural language query to Cypher."""
     text2cypher = Text2CypherRetriever(
         driver=driver,
-        llm=json_llm,  # Use json_llm for structured output
+        llm=llm,
         neo4j_schema=get_schema(driver),
         custom_prompt=prompts.custom_text2cypher_prompt,
         examples=examples
@@ -122,8 +118,8 @@ def generate_cypher_query(query):
     """
     Generate Cypher using the Text2Cypher tool
     """
-    cypher_agent = get_react_agent(
-        llm,
+    cypher_agent = agent_utils.get_react_agent(
+        lang_llm,
         [text2cypher_tool],
         prompts.CYPHER_REACT_PROMPT + "\n\nOutput the Cypher query as a JSON object with the key 'cypher'.",
         verbose=True
@@ -224,7 +220,7 @@ reduce_prompt_chain = (
 )
 
 # --- Define Global Search Tool ---
-def global_retriever(query: str, rating_threshold: float = 5) -> str:
+def get_community_data(rating_threshold: float = 5):
     community_data, _, _ = driver.execute_query(
         """
         MATCH (c:__Community__)
@@ -233,42 +229,36 @@ def global_retriever(query: str, rating_threshold: float = 5) -> str:
         """,
         rating=rating_threshold,
     )
-
     print(f"Got {len(community_data)} community summaries")
+    return community_data
 
-    # Run the map phase for each community
-    intermediate_results = []
-    for community in tqdm(community_data, desc="Processing communities"):
-        result = map_prompt_chain.invoke({
-            "summary": community["summary"],
-            "query": query
-        })
-        intermediate_results.append(result)
 
-    # Run the reduce phase
-    reduce_input = [{"query": query, "response": r.content if hasattr(r, 'content') else r} for r in intermediate_results]
-    final_result = reduce_prompt_chain.invoke(reduce_input)
-    answer = final_result.content if hasattr(final_result, 'content') else final_result
-    return answer
+def global_retriever(query: str, community_data: list) -> str:
+  """Inside the loop, for each community, this line invokes the map_prompt_chain. 
+  The map_prompt_chain is a LangChain runnable that takes a dictionary as input. Here, it's being provided with the summary from the current community and the original query. 
+  This chain likely processes the community summary in the context of the query."""
+  intermediate_results = []
+  for community in tqdm(community_data, desc="Processing communities"):
+      result = map_prompt_chain.invoke({
+          "summary": community["summary"],
+          "query": query
+      })
+      intermediate_results.append(result)
 
-class GlobalRetrieverTool(Tool):
-    """LangChain Tool for the global_retriever."""
-    def __init__(self, retriever_func):
-        self.retriever_func = retriever_func
-        super().__init__(
-            name="GlobalRetrieval",
-            func=self._run,
-            description=(
-                "Use this tool to answer questions by performing a global search across communities. "
+  reduce_input = [{"query": query, "response": r.content if hasattr(r, 'content') else r} for r in intermediate_results]
+  final_result = reduce_prompt_chain.invoke(reduce_input)
+  answer = final_result.content if hasattr(final_result, 'content') else final_result
+  return answer
+
+community_data = get_community_data()
+
+global_retriever_tool = Tool(
+    name="GlobalRetrieval",
+    func=lambda query: global_retriever(query, community_data),
+    description=("Performs global semantic search over unstructured text (documents, paragraphs, etc). Choose this tool when a semantic search over all available documents is desired. Does not require a Cypher query. "
                 "Input should be the query string."
-            ),
-        )
-
-    def _run(self, query: str) -> str:
-        try:
-            return self.retriever_func(query)
-        except Exception as e:
-            return f"Failed to run global retrieval: {e}"
+    )
+)
 
 
 def get_local_system_prompt(report_data, response_type: str = "multiple paragraphs"):
@@ -321,22 +311,12 @@ def local_search(query: str) -> str:
     final_answer = chat(local_messages, model="gpt-4o")
     return final_answer
 
-class LocalSearchTool(Tool):
-    """LangChain Tool for the local_search function."""
-    def __init__(self, search_func):
-        self.search_func = search_func
-        super().__init__(
-            name="LocalSearch",
-            func=self._run,
+local_retriever_tool = Tool(
+    name="LocalRetrieval",
+    func=local_search,
             description=(
                 "Use this tool to perform a local search within the knowledge graph "
-                "to find specific information related to the query. "
+                "to find specific information related to the query. Performs semantic search over a subset of documents (i.e., a specific section or context). Use this when the query is limited to a smaller scope. Does not require a Cypher query."
                 "Input should be the query string."
             ),
         )
-
-    def _run(self, query: str) -> str:
-        try:
-            return self.search_func(query)
-        except Exception as e:
-            return f"Failed to run local search: {e}"
