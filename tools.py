@@ -62,7 +62,7 @@ FULLTEXT_INDEX_NAME = "entity_fulltext_index"
 DIMENSION = 1536
 
 
-# --- Define Text2Cypher Tool ---
+# -------------------------------------------------------------------------------------- Define Text2Cypher Tool ------------------------------------------------------------------------------------------------------
 @tool("text2cypher_tool", description="Convert natural language query to Cypher.")
 def text2cypher_tool(query: str) -> str:
     """Convert natural language query to Cypher."""
@@ -94,7 +94,7 @@ def result_formatter_dynamic(record):
         }
     )
 
-# --- Define Hybrid Retrieval Tool ---
+# -------------------------------------------------------------------------------------------------- Define Hybrid Cypher Retrieval Tool -----------------------------------------------------------------------------------------------------
 import json
 
 def result_formatter_dynamic(record):
@@ -177,6 +177,8 @@ av_hybrid_tool = Tool(
 )
 
 
+# ------------------------------------------------------------------------------------------------- Define Global Search Tool ---------------------------------------------------------------------------------------------------------
+
 def get_map_system_prompt(context):
     return prompts.MAP_SYSTEM_PROMPT.format(context_data=context)
 
@@ -214,7 +216,7 @@ reduce_prompt_chain = (
     | lang_llm
 )
 
-# --- Define Global Search Tool ---
+
 def get_community_data(rating_threshold: float = 5):
     community_data, _, _ = driver.execute_query(
         """
@@ -256,6 +258,8 @@ global_retriever_tool = Tool(
 )
 
 
+# ------------------------------------------------------------------------------------------------- Define Local Search Tool ---------------------------------------------------------------------------------------------------------
+
 def get_local_system_prompt(report_data, response_type: str = "multiple paragraphs"):
     return prompts.LOCAL_SEARCH_SYSTEM_PROMPT.format(context_data=report_data, response_type=response_type)
 
@@ -282,7 +286,7 @@ topChunks = 3
 topCommunities = 3
 topInsideRels = 3
 
-# --- Define Local Search Tool ---
+
 def local_search(query: str) -> str:
     context, _, _ = driver.execute_query(
         cypher.local_search_query,
