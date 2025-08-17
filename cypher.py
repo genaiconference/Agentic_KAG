@@ -1,4 +1,4 @@
-import_community_query = """
+import_community_query_old = """
 UNWIND $data AS row
 MERGE (c:__Community__ {communityId: row.communityId})
 SET c.title = row.community.title,
@@ -9,6 +9,18 @@ WITH c, row
 UNWIND row.nodes AS node
 WITH c, node WHERE node IS NOT NULL AND node.entity_id IS NOT NULL
 MERGE (n:__Entity__ {entity_id: node.entity_id})
+MERGE (n)-[:IN_COMMUNITY]->(c)
+"""
+
+import_community_query = """
+UNWIND $data AS row
+MERGE (c:__Community__ {communityId: row.communityId})
+SET c.title = row.community.title,
+    c.summary = row.community.summary,
+    c.rating = row.community.rating,
+    c.rating_explanation = row.community.rating_explanation
+WITH c
+MATCH (n:__Entity__ {louvain: c.communityId})
 MERGE (n)-[:IN_COMMUNITY]->(c)
 """
 
