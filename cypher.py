@@ -33,8 +33,8 @@ community_info_query = """MATCH (e:__Entity__)
         })
         YIELD relationships
         RETURN louvain AS communityId,
-               [n in nodes | {id: n.name, description: n.summary, type: [el in labels(n) WHERE el <> '__Entity__'][0]}] AS nodes,
-               [r in relationships | {start: startNode(r).name, type: type(r), end: endNode(r).name, description: r.description}] AS rels"""
+        nodes AS nodes,
+        [r in relationships | r] AS rels"""
 
 louvain_query = '''
         CALL gds.louvain.write('communityGraph', {writeProperty: 'louvain'})
