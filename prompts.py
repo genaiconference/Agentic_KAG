@@ -48,25 +48,7 @@ where 1, 5, 7, 23, 2, 34, 46, and 64 represent the id (not the index) of the rel
 Do not include information where the supporting evidence for it is not provided.
 
 
-# Example Input
------------
-Text:
-
-Entities
-
-id,entity,description
-5,VERDANT OASIS PLAZA,Verdant Oasis Plaza is the location of the Unity March
-6,HARMONY ASSEMBLY,Harmony Assembly is an organization that is holding a march at Verdant Oasis Plaza
-
-Relationships
-
-id,source,target,description
-37,VERDANT OASIS PLAZA,UNITY MARCH,Verdant Oasis Plaza is the location of the Unity March
-38,VERDANT OASIS PLAZA,HARMONY ASSEMBLY,Harmony Assembly is holding a march at Verdant Oasis Plaza
-39,VERDANT OASIS PLAZA,UNITY MARCH,The Unity March is taking place at Verdant Oasis Plaza
-40,VERDANT OASIS PLAZA,TRIBUNE SPOTLIGHT,Tribune Spotlight is reporting on the Unity march taking place at Verdant Oasis Plaza
-41,VERDANT OASIS PLAZA,BAILEY ASADI,Bailey Asadi is speaking at Verdant Oasis Plaza about the march
-43,HARMONY ASSEMBLY,UNITY MARCH,Harmony Assembly is organizing the Unity March
+# Example Output
 
 Output:
 {{
@@ -102,47 +84,6 @@ Use the following text for your answer. Do not make anything up in your answer.
 Text:
 {input_text}
 
-The report should include the following sections:
-
-- TITLE: community's name that represents its key entities - title should be short but specific. When possible, include representative named entities in the title.
-- SUMMARY: An executive summary of the community's overall structure, how its entities are related to each other, and significant information associated with its entities.
-- IMPACT SEVERITY RATING: a float score between 0-10 that represents the severity of IMPACT posed by entities within the community.  IMPACT is the scored importance of a community.
-- RATING EXPLANATION: Give a single sentence explanation of the IMPACT severity rating.
-- DETAILED FINDINGS: A list of 5-10 key insights about the community. Each insight should have a short summary followed by multiple paragraphs of explanatory text grounded according to the grounding rules below. Be comprehensive.
-
-Return output as a well-formed JSON-formatted string with the following format:
-    {{
-        "title": <report_title>,
-        "summary": <executive_summary>,
-        "rating": <impact_severity_rating>,
-        "rating_explanation": <rating_explanation>,
-        "findings": [
-            {{
-                "summary":<insight_1_summary>,
-                "explanation": <insight_1_explanation>
-            }},
-            {{
-                "summary":<insight_2_summary>,
-                "explanation": <insight_2_explanation>
-            }}
-        ]
-    }}
-
-# Grounding Rules
-
-Points supported by data should list their data references as follows:
-
-"This is an example sentence supported by multiple data references [Data: <dataset name> (record ids); <dataset name> (record ids)]."
-
-Do not list more than 5 record ids in a single reference. Instead, list the top 5 most relevant record ids and add "+more" to indicate that there are more.
-
-For example:
-"Person X is the owner of Company Y and subject to many allegations of wrongdoing [Data: Reports (1), Entities (5, 7); Relationships (23); Claims (7, 2, 34, 64, 46, +more)]."
-
-where 1, 5, 7, 23, 2, 34, 46, and 64 represent the id (not the index) of the relevant data record.
-
-Do not include information where the supporting evidence for it is not provided.
-
 Output:"""
 
 
@@ -168,7 +109,7 @@ Return result as JSON using the following format:
 - Make sure to create as many nodes and relationships as needed to offer rich context.
 - An AI knowledge assistant must be able to read this graph and immediately understand the context.
 
-Use only fhe following nodes and relationships (if provided):
+Use only the following nodes and relationships (if provided):
 {schema}
 
 - Assign a unique string ID (e.g., "0", "1", "2", ...) to each node, and reuse it to define relationships.
@@ -202,31 +143,43 @@ Input text:
 
 
 custom_text2cypher_prompt = """
-You are an expert at writing Cypher queries for a Neo4j database.
+You are an expert at writing Cypher queries for a Neo4j 5.x database using ONLY the Schema provided.
 
-Given a user's question, generate a **valid and syntactically correct Cypher query** that:
+Goal: Given a user's question, generate a valid, syntactically correct, and read-only Cypher query strictly based on the schema provided.
 
-- Identifies the appropriate node label (`Person`, `Workshop`, `Sponsor`, `Session`, etc.) and relevant properties.
-- If the user query involves **multiple node types**, use `UNION`.
-  - Ensure **every subquery under UNION returns the same number of columns, with the same names and order**.
-  - Use `AS` to alias fields consistently across subqueries. Example:
-    - `p.name AS name`, `p.designation AS role`
-    - `s.title AS name`, `s.speaker AS role`
-- Use **partial and case-insensitive matching**:
-  - `WHERE toLower(<field>) CONTAINS toLower('...')`
-  - Or: `WHERE <field> =~ '(?i).*substring.*'`
-- Use `DISTINCT` when needed to avoid duplicate results.
-- Return only **existing properties** from the schema.
-- Always output a **syntactically correct** Cypher query.
+Hard rules (must follow):
+- Read-only: Use only MATCH, OPTIONAL MATCH, WHERE, WITH, RETURN, ORDER BY, SKIP, LIMIT, UNION, CALL { }.
+  - Never use CREATE, MERGE, SET, DELETE, REMOVE, FOREACH, LOAD CSV, db.* procedures, or apoc.* procedures unless explicitly listed in the Schema.
+- Schema fidelity: Use only labels, relationship types, and properties that appear exactly in the Schema. Escape any names as needed using backticks.
+- No Cartesian products: Do not write `MATCH (a), (b)` unless intentionally cross-joining. Connect nodes via relationships or isolate logic in subqueries.
+- Parameterization: Never inline user-provided values. Use only these parameters when needed: $q (string), $terms (list of strings), $startDate, $endDate, $limit (int), $skip (int).
+- Case-insensitive, partial match:
+  - Prefer: WHERE toLower(<field>) CONTAINS toLower($q)
+  - For multiple terms: WHERE ANY(t IN $terms WHERE toLower(<field>) CONTAINS toLower(t))
+  - Avoid regex unless necessary; if used, make it case-insensitive: WHERE <field> =~ '(?i).*' + $q + '.*'
+- Property existence: Use `<variable>.<property> IS NOT NULL`. Do not use `exists(variable.property)`.
+- Relationship existence filters: Use `EXISTS { MATCH ... }`.
+- Avoid duplicates: Use DISTINCT when needed.
+- Return shape: Project properties only (no raw nodes/relationships). Return only properties that are present in the Schema.
+- Pagination & ordering: When returning lists, apply ORDER BY on a relevant property if implied, then `SKIP coalesce($skip, 0)` and `LIMIT coalesce($limit, 50)`.
+- Aggregations: If the question asks for counts, rankings, or grouped results, use proper GROUP BY with WITH/COUNT and align all aggregated fields.
+- UNION for multiple node types:
+  - Use UNION when the question involves multiple labels/types.
+  - Every UNION branch must return the same columns (names, order, and types).
+  - Use AS to align fields consistently across branches (e.g., `p.name AS name`, `p.designation AS role`; `s.title AS name`, `s.speaker AS role`).
+  - Include a `type` column naming the entity label (e.g., `'Speaker' AS type`) across all branches.
+  - If parameters are referenced in UNION branches, either inline coalesce($skip/$limit) in each branch, or wrap branches with `CALL { WITH $q, $terms, $startDate, $endDate MATCH ... RETURN ... }`.
+- Directionality: Follow relationship directions as defined in the Schema; if unspecified, use undirected patterns.
+- Stable identifiers: If returning IDs, prefer `elementId(n) AS id`, unless a business key exists in the Schema.
+- Fallback: If the question cannot be answered strictly from the Schema (no matching labels/properties), return a no-op that yields zero rows:
+  WITH 'No matching labels or properties in schema' AS message RETURN message LIMIT 0
+- Output format: Return clean Cypher only — no markdown, no comments, no explanations, no "Cypher:" label.
 
-📦 Return fields:
-- For `Person`: `p.name`, `p.designation`, `p.bio`, `p.linkedin_url`
-- For `Workshop`: `w.title`, `w.description`, `w.duration`, etc.
-
-⚠️ Important Rules:
-- Use only properties that exist in the schema.
-- Use `AS` to **align return fields** when using `UNION`.
-- Return clean Cypher — no markdown, no explanation, no "Cypher:" label.
+📦 Return all relevant fields or properties as implied by the question (only properties that exist in the Schema). Include additional relevant properties if present.
+For example:
+- Speaker: s.name, s.designation, s.bio, s.linkedin_url
+- Workshop: w.title, w.description, w.duration
+(Use aliases to align return fields across UNION branches; include a `type` column.)
 
 Schema:
 {schema}
@@ -235,6 +188,7 @@ User question:
 {query_text}
 
 Write only the Cypher query:
+
 """
 
 
