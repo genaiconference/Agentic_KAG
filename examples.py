@@ -1,46 +1,96 @@
 examples = [
 
-    # 1. Retrieving Data
-    "USER INPUT: 'List all speakers at the conference.'\nQUERY: MATCH (p:Person) WHERE p.is_speaker = true RETURN p.name, p.designation, p.organization",
-    "USER INPUT: 'Show all workshops.'\nQUERY: MATCH (w:Workshop) RETURN w.title, w.description, w.level",
-    "USER INPUT: 'Display all sessions.'\nQUERY: MATCH (s:Session) RETURN s.title, s.description, s.theme",
+    # 1) BASIC RETRIEVAL (simple)
+    "USER INPUT: 'List all speakers at the conference.'\nQUERY: MATCH (sp:Speaker) RETURN sp.name, sp.designation, sp.organization ORDER BY sp.name",
+    "USER INPUT: 'Display all sessions.'\nQUERY: MATCH (s:Session) RETURN s.title, s.session_type AS type, s.theme, s.day, s.start_time, s.end_time ORDER BY s.day, s.start_time",
+    "USER INPUT: 'Show all workshops.'\nQUERY: MATCH (w:Workshop) RETURN w.title, w.level, w.start_time ORDER BY time(w.start_time)",
+    "USER INPUT: 'List all tools.'\nQUERY: MATCH (t:Tool) RETURN t.name, t.type ORDER BY t.name",
+    "USER INPUT: 'List all topics.'\nQUERY: MATCH (t:Topic) RETURN t.name ORDER BY t.name",
+    "USER INPUT: 'List all venues.'\nQUERY: MATCH (v:Venue) RETURN v.name ORDER BY v.name",
+    "USER INPUT: 'Show all sponsors.'\nQUERY: MATCH (s:Sponsor) RETURN s.name, s.description",
+    "USER INPUT: 'List all companies represented.'\nQUERY: MATCH (c:Company) RETURN c.name, c.industry, c.website ORDER BY c.name",
+    "USER INPUT: 'List conferences by year.'\nQUERY: MATCH (c:Conference) RETURN c.name, c.year, c.location, c.theme ORDER BY c.year DESC",
+    "USER INPUT: 'List all educational institutions speakers studied at.'\nQUERY: MATCH (ei:`Educational Institution`) RETURN ei.name ORDER BY ei.name",
 
-    # 2. Relationship Between Entities
-    "USER INPUT: 'Who conducted each workshop?'\nQUERY: MATCH (p:Person)-[:CONDUCTS]->(w:Workshop) RETURN w.title, p.name",
-    "USER INPUT: 'Which sessions are hosted by the conference?'\nQUERY: MATCH (:Conference)-[:HOSTS]->(s:Session) RETURN s.title",
-    "USER INPUT: 'Which sessions cover the topic LLMs?'\nQUERY: MATCH (s:Session)-[:COVERS]->(t:Topic {name: 'LLMs'}) RETURN s.title",
+    # 2) DIRECT RELATIONSHIPS (simple → medium)
+    "USER INPUT: 'Who presents each session?'\nQUERY: MATCH (sp:Speaker)-[:PRESENTS]->(s:Session) RETURN s.title, sp.name ORDER BY s.title",
+    "USER INPUT: 'Who conducted each workshop?'\nQUERY: MATCH (sp:Speaker)-[:CONDUCTS]->(w:Workshop) RETURN w.title, sp.name ORDER BY w.title",
+    "USER INPUT: 'Which sessions cover the topic LLMs?'\nQUERY: MATCH (s:Session)-[:COVERS]->(t:Topic {name: 'LLMs'}) RETURN s.title ORDER BY s.title",
+    "USER INPUT: 'Which workshops cover Agentic RAG?'\nQUERY: MATCH (w:Workshop)-[:COVERS]->(t:Topic {name: 'Agentic RAG'}) RETURN w.title ORDER BY w.title",
+    "USER INPUT: 'What tools are used in the session titled \"LLM Scalability Challenges\"?'\nQUERY: MATCH (:Session {title: 'LLM Scalability Challenges'})-[:USES]->(tool:Tool) RETURN tool.name, tool.type",
+    "USER INPUT: 'What sessions use LangChain?'\nQUERY: MATCH (s:Session)-[:USES]->(t:Tool {name: 'LangChain'}) RETURN s.title ORDER BY s.title",
+    "USER INPUT: 'Which workshops use PyTorch?'\nQUERY: MATCH (w:Workshop)-[:USES]->(t:Tool {name: 'PyTorch'}) RETURN w.title ORDER BY w.title",
+    "USER INPUT: 'Which companies employ speakers attending the conference?'\nQUERY: MATCH (:Speaker)-[:WORKS_FOR]->(c:Company) RETURN DISTINCT c.name ORDER BY c.name",
+    "USER INPUT: 'Show sponsors of DataHack Summit 2025.'\nQUERY: MATCH (s:Sponsor)-[:SPONSORS]->(c:Conference {name: 'DataHack Summit', year: 2025}) RETURN s.name ORDER BY s.name",
+    "USER INPUT: 'What content is hosted by the conference (sessions & workshops)?'\nQUERY: MATCH (c:Conference)-[:HOSTS]->(x) WHERE x:Session OR x:Workshop RETURN CASE WHEN x:Session THEN 'Session' ELSE 'Workshop' END AS type, x.title ORDER BY type, x.title",
+    "USER INPUT: 'What is the venue for each session?'\nQUERY: MATCH (s:Session)-[:HOSTED_AT]->(v:Venue) RETURN s.title, v.name ORDER BY s.title",
+    "USER INPUT: 'What is the venue for each workshop?'\nQUERY: MATCH (w:Workshop)-[:HOSTED_AT]->(v:Venue) RETURN w.title, v.name ORDER BY w.title",
+    "USER INPUT: 'List hack panel speakers.'\nQUERY: MATCH (sp:Speaker) WHERE sp.is_hackpanel = true RETURN sp.name, sp.designation, sp.organization ORDER BY sp.name",
+    "USER INPUT: 'Which speakers present Hack Panel sessions?'\nQUERY: MATCH (sp:Speaker)-[:PRESENTS]->(s:Session {session_type: 'Hack Panel'}) RETURN DISTINCT sp.name ORDER BY sp.name",
+    "USER INPUT: 'List speakers and their alma maters.'\nQUERY: MATCH (sp:Speaker)-[r:STUDIED_AT]->(ei:`Educational Institution`) RETURN sp.name, ei.name, r.description ORDER BY sp.name",
+    "USER INPUT: 'Which venue hosts the conference?'\nQUERY: MATCH (c:Conference)-[:HOSTED_AT]->(v:Venue) RETURN c.name, c.year, v.name",
 
-    # 3. Filtering With Conditions
-    "USER INPUT: 'List all intermediate-level workshops.'\nQUERY: MATCH (w:Workshop) WHERE w.level = 'Intermediate' RETURN w.title, w.description",
-    "USER INPUT: 'Find RAG sessions using LangChain.'\nQUERY: MATCH (s:Session)-[:COVERS]->(t:Topic {name: 'RAG'}) MATCH (s)-[:USES]->(tool:Tool {name: 'LangChain'}) RETURN s.title",
-    "USER INPUT: 'Show workshops starting after 10:00 AM.'\nQUERY: MATCH (w:Workshop) WHERE w.start_time > '10:00' RETURN w.title, w.start_time",
+    # 3) FILTERING & CONDITIONS (medium)
+    "USER INPUT: 'List all intermediate-level workshops.'\nQUERY: MATCH (w:Workshop) WHERE toLower(w.level) = 'intermediate' RETURN w.title, w.description ORDER BY w.title",
+    "USER INPUT: 'Find sessions on Day 2.'\nQUERY: MATCH (s:Session {day: 'Day 2'}) RETURN s.title, s.start_time, s.end_time ORDER BY s.start_time",
+    "USER INPUT: 'Show sessions starting after 10:00 AM on Day 1.'\nQUERY: MATCH (s:Session {day: 'Day 1'}) WHERE s.start_time > time('10:00') RETURN s.title, s.start_time ORDER BY s.start_time",
+    "USER INPUT: 'Show workshops starting after 10:00.'\nQUERY: MATCH (w:Workshop) WHERE time(w.start_time) > time('10:00') RETURN w.title, w.start_time ORDER BY time(w.start_time)",
+    "USER INPUT: 'Sessions between 14:00 and 15:30.'\nQUERY: MATCH (s:Session) WHERE s.start_time >= time('14:00') AND s.end_time <= time('15:30') RETURN s.title, s.start_time, s.end_time ORDER BY s.start_time",
+    "USER INPUT: 'Sessions that use both LangChain and Neo4j.'\nQUERY: MATCH (s:Session)-[:USES]->(:Tool {name: 'LangChain'}), (s)-[:USES]->(:Tool {name: 'Neo4j'}) RETURN DISTINCT s.title ORDER BY s.title",
+    "USER INPUT: 'Sessions covering RAG or Agentic RAG.'\nQUERY: MATCH (s:Session)-[:COVERS]->(t:Topic) WHERE t.name IN ['RAG','Agentic RAG'] RETURN DISTINCT s.title ORDER BY s.title",
+    "USER INPUT: 'Speakers with RAG-related skills.'\nQUERY: MATCH (sp:Speaker) WHERE ANY(skill IN sp.skills WHERE toLower(skill) CONTAINS 'rag') RETURN sp.name, sp.skills ORDER BY sp.name",
+    "USER INPUT: 'Speakers who have awards listed.'\nQUERY: MATCH (sp:Speaker) WHERE sp.awards IS NOT NULL AND size(sp.awards) > 0 RETURN sp.name, sp.awards ORDER BY sp.name",
+    "USER INPUT: 'Speakers certified in AWS or Azure.'\nQUERY: MATCH (sp:Speaker) WHERE ANY(c IN sp.certifications WHERE c CONTAINS 'AWS' OR c CONTAINS 'Azure') RETURN sp.name, sp.certifications ORDER BY sp.name",
+    "USER INPUT: 'Venues hosting more than 3 sessions.'\nQUERY: MATCH (v:Venue)<-[:HOSTED_AT]-(s:Session) WITH v, COUNT(s) AS cnt WHERE cnt > 3 RETURN v.name, cnt ORDER BY cnt DESC",
+    "USER INPUT: 'Topics with at least 5 total sessions/workshops.'\nQUERY: MATCH (x)-[:COVERS]->(t:Topic) WHERE x:Session OR x:Workshop WITH t, COUNT(x) AS total WHERE total >= 5 RETURN t.name, total ORDER BY total DESC",
+    "USER INPUT: 'Most used tools across the program.'\nQUERY: MATCH (x)-[:USES]->(tool:Tool) WHERE x:Session OR x:Workshop RETURN tool.name, COUNT(DISTINCT x) AS uses ORDER BY uses DESC",
+    "USER INPUT: 'Companies with at least two speakers.'\nQUERY: MATCH (sp:Speaker)-[:WORKS_FOR]->(c:Company) WITH c, COUNT(DISTINCT sp) AS speakers WHERE speakers >= 2 RETURN c.name, speakers ORDER BY speakers DESC",
+    "USER INPUT: 'Sponsor counts per conference.'\nQUERY: MATCH (s:Sponsor)-[:SPONSORS]->(c:Conference) RETURN c.name, c.year, COUNT(s) AS sponsors ORDER BY sponsors DESC",
 
-    # 4. Aggregations and Statistics
-    "USER INPUT: 'Count the number of sessions by theme.'\nQUERY: MATCH (s:Session) RETURN s.theme, COUNT(s) AS session_count",
-    "USER INPUT: 'How many workshops did each speaker conduct?'\nQUERY: MATCH (p:Person)-[:CONDUCTS]->(w:Workshop) RETURN p.name, COUNT(w) AS num_workshops",
-    "USER INPUT: 'How many sponsors does the conference have?'\nQUERY: MATCH (s:Sponsor)-[:SPONSORS]->(:Conference) RETURN COUNT(s) AS sponsor_count",
+    # 4) AGGREGATIONS & STATS (medium)
+    "USER INPUT: 'Count the number of sessions by theme.'\nQUERY: MATCH (s:Session) RETURN s.theme AS theme, COUNT(*) AS session_count ORDER BY session_count DESC",
+    "USER INPUT: 'How many workshops did each speaker conduct?'\nQUERY: MATCH (sp:Speaker)-[:CONDUCTS]->(w:Workshop) RETURN sp.name, COUNT(w) AS num_workshops ORDER BY num_workshops DESC",
+    "USER INPUT: 'How many sessions did each speaker present?'\nQUERY: MATCH (sp:Speaker)-[:PRESENTS]->(s:Session) RETURN sp.name, COUNT(s) AS num_sessions ORDER BY num_sessions DESC",
+    "USER INPUT: 'How many hack panel speakers are there?'\nQUERY: MATCH (sp:Speaker) WHERE sp.is_hackpanel = true RETURN COUNT(sp) AS hackpanel_speakers",
+    "USER INPUT: 'Number of sessions per day per venue.'\nQUERY: MATCH (s:Session)-[:HOSTED_AT]->(v:Venue) RETURN s.day AS day, v.name AS venue, COUNT(*) AS sessions ORDER BY day, venue",
+    "USER INPUT: 'Top 5 topics by coverage across sessions and workshops.'\nQUERY: MATCH (x)-[:COVERS]->(t:Topic) WHERE x:Session OR x:Workshop RETURN t.name, COUNT(DISTINCT x) AS cnt ORDER BY cnt DESC LIMIT 5",
+    "USER INPUT: 'For each speaker, how many distinct tools are used in their sessions?'\nQUERY: MATCH (sp:Speaker)-[:PRESENTS]->(s:Session)-[:USES]->(tool:Tool) RETURN sp.name, COUNT(DISTINCT tool) AS tools_count ORDER BY tools_count DESC",
+    "USER INPUT: 'For each company, how many presenting speakers?'\nQUERY: MATCH (sp:Speaker)-[:WORKS_FOR]->(c:Company) MATCH (sp)-[:PRESENTS]->(:Session) RETURN c.name, COUNT(DISTINCT sp) AS presenters ORDER BY presenters DESC",
+    "USER INPUT: 'Average number of sessions per venue.'\nQUERY: MATCH (s:Session)-[:HOSTED_AT]->(v:Venue) WITH v, COUNT(s) AS cnt RETURN avg(cnt) AS avg_sessions_per_venue",
+    "USER INPUT: 'Session count by session type.'\nQUERY: MATCH (s:Session) RETURN s.session_type AS type, COUNT(*) AS count ORDER BY count DESC",
 
-    # 5. Pattern-Based Recommendations
-    "USER INPUT: 'Recommend workshops covering Agent ops.'\nQUERY: MATCH (w:Workshop)-[:COVERS]->(t:Topic {name: 'Agent ops'}) RETURN w.title, w.description",
-    "USER INPUT: 'Suggest sessions for someone interested in LLMs.'\nQUERY: MATCH (s:Session)-[:COVERS]->(t:Topic {name: 'LLMs'}) RETURN s.title",
-    "USER INPUT: 'Workshops using the same tools as the session Graph at Scale.'\nQUERY: MATCH (s:Session {title: 'Graph at Scale'})-[:USES]->(tool:Tool)<-[:USES]-(w:Workshop) RETURN DISTINCT w.title",
+    # 5) PATTERN-BASED & RECOMMENDATIONS (complex)
+    "USER INPUT: 'Recommend workshops for someone interested in LLMs and LangChain.'\nQUERY: MATCH (w:Workshop)-[:COVERS]->(:Topic {name: 'LLMs'}) MATCH (w)-[:USES]->(:Tool {name: 'LangChain'}) RETURN DISTINCT w.title, w.level, w.instructor ORDER BY w.title",
+    "USER INPUT: 'Workshops using the same tools as the session \"Graph at Scale\".'\nQUERY: MATCH (s:Session {title: 'Graph at Scale'})-[:USES]->(tool:Tool)<-[:USES]-(w:Workshop) RETURN DISTINCT w.title ORDER BY w.title",
+    "USER INPUT: 'Sessions similar to \"Graph at Scale\" by overlapping topics and tools.'\nQUERY: MATCH (seed:Session {title: 'Graph at Scale'}) OPTIONAL MATCH (seed)-[:COVERS]->(t1:Topic) WITH seed, collect(DISTINCT t1.name) AS seedTopics OPTIONAL MATCH (seed)-[:USES]->(u1:Tool) WITH seed, seedTopics, collect(DISTINCT u1.name) AS seedTools MATCH (other:Session) OPTIONAL MATCH (other)-[:COVERS]->(t2:Topic) WITH seed, seedTopics, seedTools, other, collect(DISTINCT t2.name) AS otherTopics OPTIONAL MATCH (other)-[:USES]->(u2:Tool) WITH seed, seedTopics, seedTools, other, otherTopics, collect(DISTINCT u2.name) AS otherTools WITH other, size([x IN otherTopics WHERE x IN seedTopics]) + size([y IN otherTools WHERE y IN seedTools]) AS overlap WHERE other <> seed AND overlap > 0 RETURN other.title ORDER BY overlap DESC LIMIT 10",
+    "USER INPUT: 'Recommend sessions based on a list of interests (topics).' \nQUERY: WITH [x IN $interests | toLower(x)] AS wanted MATCH (s:Session)-[:COVERS]->(t:Topic) WITH s, collect(DISTINCT toLower(t.name)) AS covered WITH s, size([x IN covered WHERE x IN wanted]) AS score WHERE score > 0 RETURN s.title, score ORDER BY score DESC, s.start_time",
+    "USER INPUT: 'Find sessions that do not use any tools.'\nQUERY: MATCH (s:Session) WHERE NOT (s)-[:USES]->(:Tool) RETURN s.title ORDER BY s.title",
+    "USER INPUT: 'Find sessions that cover both RAG and Vector Databases.'\nQUERY: MATCH (s:Session)-[:COVERS]->(:Topic {name: 'RAG'}), (s)-[:COVERS]->(:Topic {name: 'Vector Databases'}) RETURN DISTINCT s.title ORDER BY s.title",
+    "USER INPUT: 'Find sessions covering any of the given topics.'\nQUERY: WITH [x IN $topics | toLower(x)] AS topics MATCH (s:Session)-[:COVERS]->(t:Topic) WHERE toLower(t.name) IN topics RETURN DISTINCT s.title ORDER BY s.title",
+    "USER INPUT: 'Who co-presented with a given speaker?'\nQUERY: MATCH (me:Speaker {name: $speaker})-[:PRESENTS]->(s:Session)<-[:PRESENTS]-(co:Speaker) WHERE co <> me RETURN DISTINCT co.name, s.title ORDER BY co.name",
+    "USER INPUT: 'Sessions presented by speakers from a specific company.'\nQUERY: MATCH (sp:Speaker)-[:WORKS_FOR]->(c:Company {name: $company}) MATCH (sp)-[:PRESENTS]->(s:Session) RETURN DISTINCT s.title ORDER BY s.title",
+    "USER INPUT: 'Beginner workshops covering a given topic.'\nQUERY: MATCH (w:Workshop)-[:COVERS]->(t:Topic {name: $topic}) WHERE toLower(w.level) = 'beginner' RETURN w.title, w.instructor ORDER BY w.title",
+    "USER INPUT: 'Sessions at the Claude venue on Day 1 sorted by time.'\nQUERY: MATCH (s:Session)-[:HOSTED_AT]->(v:Venue {name: 'Claude'}) WHERE s.day = 'Day 1' RETURN s.title, s.start_time, s.end_time ORDER BY s.start_time",
+    "USER INPUT: 'Sessions that use tools used by workshops covering Agentic RAG.'\nQUERY: MATCH (w:Workshop)-[:COVERS]->(:Topic {name: 'Agentic RAG'})-<-[:COVERS]-(:Workshop) WITH DISTINCT w MATCH (w)-[:USES]->(t:Tool) MATCH (s:Session)-[:USES]->(t) RETURN DISTINCT s.title ORDER BY s.title",
 
-    # Additional Person, Workshop, Session Queries
-    "USER INPUT: 'Who conducted the workshop titled \"Building AgentOps Pipelines\"?'\nQUERY: MATCH (p:Person)-[:CONDUCTS]->(w:Workshop {title: 'Building AgentOps Pipelines'}) RETURN p.name, p.designation",
-    "USER INPUT: 'Who presented a session on generative AI?'\nQUERY: MATCH (p:Person)-[:PRESENTS]->(s:Session)-[:COVERS]->(t:Topic {name: 'Generative AI'}) RETURN p.name, s.title",
-    "USER INPUT: 'What tools are used in the session titled \"LLM Scalability Challenges\"?'\nQUERY: MATCH (:Session {title: 'LLM Scalability Challenges'})-[:USES]->(tool:Tool) RETURN tool.name",
-    "USER INPUT: 'Find all sessions that cover the topic RAG.'\nQUERY: MATCH (s:Session)-[:COVERS]->(t:Topic {name: 'RAG'}) RETURN s.title, s.description",
-    "USER INPUT: 'What topics does the workshop Responsible AI in Practice cover?'\nQUERY: MATCH (:Workshop {title: 'Responsible AI in Practice'})-[:COVERS]->(t:Topic) RETURN t.name",
-    "USER INPUT: 'Which workshops use PyTorch?'\nQUERY: MATCH (w:Workshop)-[:USES]->(t:Tool {name: 'PyTorch'}) RETURN w.title",
-    "USER INPUT: 'What sessions use LangChain?'\nQUERY: MATCH (s:Session)-[:USES]->(t:Tool {name: 'LangChain'}) RETURN s.title",
-
-    # Sponsors & Companies
-    "USER INPUT: 'Show all sponsors of the conference.'\nQUERY: MATCH (s:Sponsor)-[:SPONSORS]->(:Conference) RETURN s.name, s.level",
-    "USER INPUT: 'Which companies employ people attending the conference?'\nQUERY: MATCH (p:Person)-[:WORKS_FOR]->(c:Company) RETURN DISTINCT c.name",
-    "USER INPUT: 'List sponsors of awards.'\nQUERY: MATCH (s:Sponsor)-[:SPONSORS]->(a:Award) RETURN DISTINCT s.name, a.title",
-
-    # Conference Info
-    "USER INPUT: 'What sessions does the conference host?'\nQUERY: MATCH (:Conference)-[:HOSTS]->(s:Session) RETURN s.title",
-    "USER INPUT: 'What workshops are hosted by the DataHack Summit 2025?'\nQUERY: MATCH (c:Conference {name: 'DataHack Summit', year: 2025})-[:HOSTS]->(w:Workshop) RETURN w.title",
-    "USER INPUT: 'What is the theme of the 2025 conference?'\nQUERY: MATCH (c:Conference {year: 2025}) RETURN c.theme",
+    # 6) ADVANCED / SUPER-COMPLEX (reasoning across time & paths)
+    "USER INPUT: 'Detect time overlaps between sessions in the same venue (same day).'\nQUERY: MATCH (s1:Session)-[:HOSTED_AT]->(v:Venue)<-[:HOSTED_AT]-(s2:Session) WHERE s1.day = s2.day AND id(s1) < id(s2) AND s1.start_time < s2.end_time AND s2.start_time < s1.end_time RETURN s1.day AS day, v.name AS venue, s1.title AS session1, s1.start_time AS s1_start, s1.end_time AS s1_end, s2.title AS session2, s2.start_time AS s2_start, s2.end_time AS s2_end ORDER BY day, venue, s1_start",
+    "USER INPUT: 'Find gaps between consecutive sessions per venue and day.'\nQUERY: MATCH (s:Session)-[:HOSTED_AT]->(v:Venue) WITH v, s.day AS day, s ORDER BY v.name, day, s.start_time WITH v, day, collect(s) AS sessions WITH v, day, sessions, range(0, size(sessions)-2) AS idxs UNWIND idxs AS i WITH v, day, sessions[i] AS a, sessions[i+1] AS b RETURN day, v.name AS venue, a.title AS before, a.end_time AS before_end, b.title AS after, b.start_time AS after_start, duration.between(a.end_time, b.start_time) AS gap ORDER BY day, venue, before_end",
+    "USER INPUT: 'Shortest collaboration path between two speakers (up to 6 hops).'\nQUERY: MATCH (a:Speaker {name: $a}), (b:Speaker {name: $b}) MATCH p = shortestPath((a)-[:PRESENTS|:CONDUCTS|:WORKS_FOR|:COVERS|:USES*..6]-(b)) RETURN p",
+    "USER INPUT: 'Sessions whose topic and tool sets are supersets of a reference session.'\nQUERY: MATCH (seed:Session {title: $title})-[:COVERS]->(t:Topic) WITH seed, collect(DISTINCT t.name) AS seedTopics MATCH (seed)-[:USES]->(u:Tool) WITH seed, seedTopics, collect(DISTINCT u.name) AS seedTools MATCH (other:Session) OPTIONAL MATCH (other)-[:COVERS]->(t2:Topic) WITH seed, seedTopics, seedTools, other, collect(DISTINCT t2.name) AS otherTopics OPTIONAL MATCH (other)-[:USES]->(u2:Tool) WITH seed, seedTopics, seedTools, other, otherTopics, collect(DISTINCT u2.name) AS otherTools WHERE other <> seed AND size([x IN seedTopics WHERE x IN otherTopics]) = size(seedTopics) AND size([y IN seedTools WHERE y IN otherTools]) = size(seedTools) RETURN other.title ORDER BY other.title",
+    "USER INPUT: 'Return rich session objects with venue, tools, and topics.'\nQUERY: MATCH (s:Session) OPTIONAL MATCH (s)-[:USES]->(tool:Tool) OPTIONAL MATCH (s)-[:COVERS]->(t:Topic) OPTIONAL MATCH (s)-[:HOSTED_AT]->(v:Venue) WITH s, collect(DISTINCT tool.name) AS tools, collect(DISTINCT t.name) AS topics, v RETURN s { .title, .session_type, .theme, .day, .start_time, .end_time, venue: v.name, tools: tools, topics: topics } AS session",
+    "USER INPUT: 'Unified content using tool Neo4j (sessions & workshops).'\nQUERY: MATCH (x)-[:USES]->(tool:Tool {name: 'Neo4j'}) WHERE x:Session OR x:Workshop RETURN CASE WHEN x:Session THEN 'Session' ELSE 'Workshop' END AS type, x.title ORDER BY type, x.title",
+    "USER INPUT: 'Speakers with no company listed.'\nQUERY: MATCH (sp:Speaker) WHERE NOT (sp)-[:WORKS_FOR]->(:Company) RETURN sp.name ORDER BY sp.name",
+    "USER INPUT: 'Find sessions instructed by Jane Doe (property search).'\nQUERY: MATCH (s:Session) WHERE toLower(s.instructor) CONTAINS toLower('Jane Doe') RETURN s.title ORDER BY s.title",
+    "USER INPUT: 'Speakers who studied at any of a given list of universities.'\nQUERY: WITH [x IN $universities | toLower(x)] AS unis MATCH (sp:Speaker)-[:STUDIED_AT]->(ei:`Educational Institution`) WHERE toLower(ei.name) IN unis RETURN DISTINCT sp.name, ei.name ORDER BY sp.name",
+    "USER INPUT: 'For each topic, list all speakers involved via sessions or workshops.'\nQUERY: MATCH (t:Topic) OPTIONAL MATCH (x)-[:COVERS]->(t) WHERE x:Session OR x:Workshop OPTIONAL MATCH (sp:Speaker)-[:PRESENTS]->(x) OPTIONAL MATCH (sp2:Speaker)-[:CONDUCTS]->(x) WITH t, collect(DISTINCT sp.name) + collect(DISTINCT sp2.name) AS speakerNames RETURN t.name AS topic, [n IN speakerNames WHERE n IS NOT NULL] AS speakers ORDER BY topic",
+    "USER INPUT: 'Find venues that host both sessions and workshops.'\nQUERY: MATCH (v:Venue)<-[:HOSTED_AT]-(:Session) MATCH (v)<-[:HOSTED_AT]-(:Workshop) RETURN DISTINCT v.name ORDER BY v.name",
+    "USER INPUT: 'Which sponsors support more than one conference?'\nQUERY: MATCH (sp:Sponsor)-[:SPONSORS]->(c:Conference) WITH sp, COUNT(DISTINCT c) AS confs WHERE confs > 1 RETURN sp.name, confs ORDER BY confs DESC",
+    "USER INPUT: 'Detect scheduling conflicts for a specific speaker’s sessions.'\nQUERY: MATCH (sp:Speaker {name: $speaker})-[:PRESENTS]->(s1:Session) MATCH (sp)-[:PRESENTS]->(s2:Session) WHERE s1.day = s2.day AND id(s1) < id(s2) AND s1.start_time < s2.end_time AND s2.start_time < s1.end_time RETURN s1.title AS session1, s2.title AS session2, s1.day AS day, s1.start_time AS s1_start, s1.end_time AS s1_end, s2.start_time AS s2_start, s2.end_time AS s2_end ORDER BY day, s1_start",
+    "USER INPUT: 'Speakers whose sessions use a given tool.'\nQUERY: MATCH (sp:Speaker)-[:PRESENTS]->(s:Session)-[:USES]->(t:Tool {name: $tool}) RETURN DISTINCT sp.name ORDER BY sp.name",
+    "USER INPUT: 'Pairs of speakers who studied at the same institution.'\nQUERY: MATCH (a:Speaker)-[:STUDIED_AT]->(ei:`Educational Institution`)<-[:STUDIED_AT]-(b:Speaker) WHERE id(a) < id(b) RETURN ei.name AS institution, a.name AS speaker1, b.name AS speaker2 ORDER BY institution, speaker1",
+    "USER INPUT: 'Case-insensitive search for topics by substring.'\nQUERY: MATCH (t:Topic) WHERE toLower(t.name) CONTAINS toLower($q) RETURN t.name ORDER BY t.name",
+    "USER INPUT: 'Sessions and workshops that cover RAG, including conference context.'\nQUERY: MATCH (c:Conference)-[:HOSTS]->(x)-[:COVERS]->(t:Topic {name: 'RAG'}) WHERE x:Session OR x:Workshop RETURN c.name AS conference, c.year AS year, CASE WHEN x:Session THEN 'Session' ELSE 'Workshop' END AS type, x.title ORDER BY conference, type, x.title",
+    "USER INPUT: 'Build a venue-wise session schedule map.'\nQUERY: MATCH (v:Venue)<-[:HOSTED_AT]-(s:Session) WITH v, s ORDER BY v.name, s.day, s.start_time WITH v, collect({title: s.title, day: s.day, start: s.start_time, end: s.end_time}) AS sched RETURN v.name AS venue, sched ORDER BY venue"
 ]
+
