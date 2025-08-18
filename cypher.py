@@ -41,7 +41,7 @@ louvain_query = '''
         YIELD communityCount, communityDistribution
         '''
 
-projection_query = '''
+projection_query_all_nodes = '''
         CALL gds.graph.project.cypher(
             'communityGraph',
             'MATCH (n:__Entity__) RETURN id(n) AS id',
@@ -51,7 +51,23 @@ projection_query = '''
         )
         YIELD graphName, nodeCount, relationshipCount
         '''
-        
+projection_query = """
+    'communityGraph',
+    // Project Topic nodes + all their neighbors
+    '
+    MATCH (t:Topic) RETURN id(t) AS id
+    UNION
+    MATCH (t:Topic)--(n) RETURN id(n) AS id
+    ',
+    // Project all relationships involving Topics
+    '
+    MATCH (t:Topic)-[r]-(n) 
+    RETURN id(t) AS source, id(n) AS target
+    '
+)
+YIELD graphName, nodeCount, relationshipCount;
+ 
+"""
 local_search_query = """
 CALL db.index.vector.queryNodes('entities', $k, $embedding)
 YIELD node, score
