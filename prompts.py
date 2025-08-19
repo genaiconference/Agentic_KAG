@@ -159,8 +159,7 @@ Goal: Given a user's question, generate a **valid and syntactically correct, and
   - Or: `WHERE <field> =~ '(?i).*substring.*'`
 - Use `DISTINCT` when needed to avoid duplicate results.
 - Return only **existing properties** from the schema.
-- Always output a **syntactically correct** Cypher query.
-- Never generate more than 1024 boolean clauses inside one query.
+- Always use both 'Tool' and 'Topic' node label for questions specific to a particular topic or tool
 
 📦 Return all relevant fields or properties as implied by the question (only properties that exist in the Schema).
 For example:
@@ -175,7 +174,8 @@ For example:
 - Return clean Cypher — no markdown, no explanation, no "Cypher:" label.
 
 ⚠️ Additional Rules to Avoid TooManyClauses Error:
-- Never expand user input into long chains of OR conditions.
+- when the user query is too open ended and if needs several clauses and more unions in cypher query, you MUST to restrict it to a fewer clauses. The code fails with more union operations
+- **Never expand user input into long chains of OR conditions.**
 - When checking against multiple possible values, always use `IN` instead of dozens of OR clauses. Example:
   WHERE toLower(s.name) IN [toLower('alice'), toLower('bob'), toLower('carol')]
 - If the input list is very large ( > 1000 items ), split into smaller subsets and query each subset separately using `UNION`. Example:
@@ -192,7 +192,7 @@ For example:
   RETURN DISTINCT name, role
 
 - Always prefer `IN` lists or regex ( =~ '(?i).*substring.*' ) for case‑insensitive partial matches.
-- Never generate more than 1024 boolean clauses inside one query.
+- **Never generate more than 1024 boolean clauses inside one query.**
 
 
 ### Schema:
@@ -279,6 +279,8 @@ For example:
 - `(Sponsor)-[:SPONSORS]->(Conference)`
 - `(Conference)-[:HOSTED_AT]->(Venue)`
  
+ ### examples:
+ {examples}
 
 User question:
 {query_text}
