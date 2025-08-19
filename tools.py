@@ -6,7 +6,7 @@ from neo4j_graphrag.types import RetrieverResultItem
 from neo4j_graphrag.message_history import InMemoryMessageHistory
 from neo4j_graphrag.generation import GraphRAG, RagTemplate
 from langchain.tools import Tool
-from prompts import rag_prompt, custom_text2cypher_prompt2, MAP_SYSTEM_PROMPT, REDUCE_SYSTEM_PROMPT, LOCAL_SEARCH_SYSTEM_PROMPT
+from prompts import rag_prompt, custom_text2cypher_prompt, MAP_SYSTEM_PROMPT, REDUCE_SYSTEM_PROMPT, LOCAL_SEARCH_SYSTEM_PROMPT
 from examples import examples
 from langchain.prompts import PromptTemplate
 from cypher import local_search_query
@@ -122,7 +122,7 @@ def generate_cypher_query(query):
         llm=llm,
         neo4j_schema=get_schema(driver),
         driver=driver,
-        custom_prompt=custom_text2cypher_prompt2,
+        custom_prompt=custom_text2cypher_prompt,
         examples=examples,
     )
     response = t2c_retriever.search(query_text=query)
@@ -140,10 +140,10 @@ def generate_cypher_query_lcel(user_question: str) -> str:
         str: A syntactically correct Cypher query as a string.
     """
     # Ensure cypher_gen_prompt is a PromptTemplate before chaining
-    if isinstance(custom_text2cypher_prompt2, str):
-        cypher_prompt_template = PromptTemplate.from_template(custom_text2cypher_prompt2)
+    if isinstance(custom_text2cypher_prompt, str):
+        cypher_prompt_template = PromptTemplate.from_template(custom_text2cypher_prompt)
     else:
-        cypher_prompt_template = custom_text2cypher_prompt2
+        cypher_prompt_template = custom_text2cypher_prompt
 
     cypher_chain = cypher_prompt_template | lang_llm
 
@@ -161,7 +161,7 @@ def get_rag_for_query_text2cypher(query: str):
         llm=llm,
         neo4j_schema=get_schema(driver),
         driver=driver,
-        custom_prompt=custom_text2cypher_prompt2,
+        custom_prompt=custom_text2cypher_prompt,
         examples=examples,
     )
 
@@ -313,7 +313,7 @@ global_retriever_tool = Tool(
     name="GlobalRetrieval",
     func=lambda query: global_retriever(query, community_data),
     description=(
-        "Performs global semantic search over unstructured text (documents, paragraphs, etc). Choose this tool when a semantic search over all available documents is desired."
+        "Performs global semantic search over unstructured text (documents, paragraphs, etc). Choose this tool when a semantic search over all available nodes is desired."
         )
 )
 
