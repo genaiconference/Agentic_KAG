@@ -143,7 +143,7 @@ Input text:
 {text}
 """
 
-custom_text2cypher_prompt2 = """
+custom_text2cypher_prompt = """
 You are an expert at writing Cypher queries for a Neo4j 5.x database using ONLY the Schema provided.
 
 Goal: Given a user's question, generate a **valid and syntactically correct, and read-only Cypher query strictly based on the schema provided. The cypher you generate must:
@@ -160,6 +160,7 @@ Goal: Given a user's question, generate a **valid and syntactically correct, and
 - Use `DISTINCT` when needed to avoid duplicate results.
 - Return only **existing properties** from the schema.
 - Always output a **syntactically correct** Cypher query.
+- Never generate more than 1024 boolean clauses inside one query.
 
 📦 Return all relevant fields or properties as implied by the question (only properties that exist in the Schema).
 For example:
@@ -172,6 +173,27 @@ For example:
 - Use only properties and relationships that exist in the schema. Never create your own.
 - Use `AS` to **align return fields** when using `UNION`.
 - Return clean Cypher — no markdown, no explanation, no "Cypher:" label.
+
+⚠️ Additional Rules to Avoid TooManyClauses Error:
+- Never expand user input into long chains of OR conditions.
+- When checking against multiple possible values, always use `IN` instead of dozens of OR clauses. Example:
+  WHERE toLower(s.name) IN [toLower('alice'), toLower('bob'), toLower('carol')]
+- If the input list is very large ( > 1000 items ), split into smaller subsets and query each subset separately using `UNION`. Example:
+
+  CALL {{
+    MATCH (s:Speaker)
+    WHERE toLower(s.name) IN [toLower('alice'), toLower('bob'), ...] 
+    RETURN s.name AS name, s.designation AS role
+    UNION
+    MATCH (s:Speaker)
+    WHERE toLower(s.name) IN [toLower('zoe'), toLower('yuki'), ...]
+    RETURN s.name AS name, s.designation AS role
+  }}
+  RETURN DISTINCT name, role
+
+- Always prefer `IN` lists or regex ( =~ '(?i).*substring.*' ) for case‑insensitive partial matches.
+- Never generate more than 1024 boolean clauses inside one query.
+
 
 ### Schema:
 ### 📘 SCHEMA DEFINITIONS
@@ -265,55 +287,6 @@ Write only the Cypher query:
 """
 
 
-custom_text2cypher_prompt = """
-You are an expert at writing Cypher queries for a Neo4j 5.x database using ONLY the Schema provided.
-
-Goal: Given a user's question, generate a valid, syntactically correct, and read-only Cypher query strictly based on the schema provided.
-
-Hard rules (must follow):
-- Read-only: Use only MATCH, OPTIONAL MATCH, WHERE, WITH, RETURN, ORDER BY, SKIP, LIMIT, UNION, CALL {{ }}.
-  - Never use CREATE, MERGE, SET, DELETE, REMOVE, FOREACH, LOAD CSV, db.* procedures, or apoc.* procedures unless explicitly listed in the Schema.
-- Schema fidelity: Use only labels, relationship types, and properties that appear exactly in the Schema. Escape any names as needed using backticks.
-- No Cartesian products: Do not write `MATCH (a), (b)` unless intentionally cross-joining. Connect nodes via relationships or isolate logic in subqueries.
-- Parameterization: Never inline user-provided values. Use only these parameters when needed: $q (string), $terms (list of strings), $startDate, $endDate, $limit (int), $skip (int). When carrying parameters forward with WITH, always alias them (e.g., WITH $q AS q, $terms AS terms).
-- Case-insensitive, partial match:
-  - Prefer: WHERE toLower(<field>) CONTAINS toLower($q)
-  - For multiple terms: WHERE ANY(t IN $terms WHERE toLower(<field>) CONTAINS toLower(t))
-  - Avoid regex unless necessary; if used, make it case-insensitive: WHERE <field> =~ '(?i).*' + $q + '.*'
-- Property existence: Use `<variable>.<property> IS NOT NULL`. Do not use `exists(variable.property)`.
-- Relationship existence filters: Use `EXISTS {{ MATCH ... }}`.
-- Avoid duplicates: Use DISTINCT when needed.
-- Return shape: Project properties only (no raw nodes/relationships). Return only properties that are present in the Schema.
-- Pagination & ordering: When returning lists, apply ORDER BY on a relevant property if implied, then `SKIP coalesce($skip, 0)` and `LIMIT coalesce($limit, 50)`.
-- Aggregations: If the question asks for counts, rankings, or grouped results, use proper GROUP BY with WITH/COUNT and align all aggregated fields.
-- UNION for multiple node types:
-  - Use UNION when the question involves multiple labels/types.
-  - Every UNION branch must return the same columns (names, order, and types).
-  - Use AS to align fields consistently across branches (e.g., `p.name AS name`, `p.designation AS role`; `s.title AS name`, `s.speaker AS role`).
-  - Include a `type` column naming the entity label (e.g., `'Speaker' AS type`) across all branches.
-  - If parameters are referenced in UNION branches, either inline coalesce($skip/$limit) in each branch, or wrap branches with `CALL {{ WITH $q, $terms, $startDate, $endDate MATCH ... RETURN ... }}`.
-- Directionality: Follow relationship directions as defined in the Schema; if unspecified, use undirected patterns.
-- Stable identifiers: If returning IDs, prefer `elementId(n) AS id`, unless a business key exists in the Schema.
-- Do NOT use parameterized pagination (no `$skip` or `$limit`). If a limit is asked in the question for example top 5 or top 10, append a literal `LIMIT 5` or LIMT 10 (or an appropriate number as per the quesiton). Return only the fields asked for.
-- Fallback: If the question cannot be answered strictly from the Schema (no matching labels/properties), return a no-op that yields zero rows:
-  WITH 'No matching labels or properties in schema' AS message RETURN message LIMIT 0
-- Output format: Return clean Cypher only — no markdown, no comments, no explanations, no "Cypher:" label.
-
-📦 Return all relevant fields or properties as implied by the question (only properties that exist in the Schema). Include additional relevant properties if present.
-For example:
-- Speaker: s.name, s.designation, s.bio, s.linkedin_url
-- Workshop: w.title, w.description, w.duration
-(Use aliases to align return fields across UNION branches; include a `type` column.)
-
-Schema:
-{schema}
-
-User question:
-{query_text}
-
-Write only the Cypher query:
-
-"""
 
 
 rag_prompt="""Answer the following question based solely on the provided context.
