@@ -87,7 +87,7 @@ av_hybrid_tool = Tool(
     name="AVHybrid",
     func=get_rag_for_query_hybrid,
     description=(
-        "Uses both semantic vector search and traditional keyword search over the graph’s data stored in Neo4j, but does not perform any graph traversal. Instead, it finds relevant nodes and content by combining these retrieval methods for more accurate and contextually relevant answers."
+        "Use this tool as the last fallback option when every other tool fails."
     )
 )
 
