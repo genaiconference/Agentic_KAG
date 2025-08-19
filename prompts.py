@@ -87,6 +87,8 @@ Text:
 Output:"""
 
 
+
+
 ENTITY_RELATION_EXTRACTOR_PROMPT = """
 You are an elite AI model trained to extract structured data to construct a knowledge graph.
 
@@ -171,8 +173,90 @@ For example:
 - Use `AS` to **align return fields** when using `UNION`.
 - Return clean Cypher — no markdown, no explanation, no "Cypher:" label.
 
-Schema:
-{schema}
+### Schema:
+### 📘 SCHEMA DEFINITIONS
+ 
+#### 🧑‍🏫 Node: `Speaker`
+- `name`: STRING
+- `organization`: STRING
+- `designation`: STRING
+- `bio`: STRING
+- `linkedin_url`: STRING
+- `awards`: LIST
+- `is_hackpanel`: BOOLEAN
+- `skills`: LIST
+- `interests`: LIST
+- `certifications`: LIST
+ 
+#### 🧠 Node: `Session`
+- `title`: STRING
+- `description`: STRING
+- `instructor`: STRING
+- `session_type`: STRING (`Keynote`, `Hack Session`, `PowerTalk`, etc.)
+- `theme`: STRING
+- `tools_discussed`: LIST
+- `level`: STRING
+- `start_time`: STRING (24-hour format, e.g., `"09:30"`)
+- `end_time`: STRING (24-hour format, e.g., `"17:30"`)
+- `day`: STRING (`Day 1`, `Day 2`, etc.)
+- `date`: STRING (`YYYY-MM-DD`)
+ 
+#### 🛠️ Node: `Workshop`
+- `title`: STRING
+- `description`: STRING
+- `instructor`: STRING
+- `start_time`: STRING (24-hour)
+- `level`: STRING
+- `prerequisites`: LIST
+- `tools_used`: LIST
+ 
+#### 📍 Node: `Venue`
+- `name`: STRING
+ 
+#### 💼 Node: `Company`
+- `name`: STRING
+- `industry`: STRING
+- `website`: STRING
+ 
+#### 🧑‍🎓 Node: `Educational Institution`
+- `name`: STRING
+ 
+#### 🧾 Node: `Sponsor`
+- `name`: STRING
+- `description`: STRING
+ 
+#### 🎤 Node: `Conference`
+- `name`: STRING
+- `year`: INTEGER
+- `location`: STRING
+- `theme`: STRING
+ 
+#### 🔧 Node: `Tool`
+- `name`: STRING
+- `type`: STRING
+ 
+#### 📚 Node: `Topic`
+- `name`: STRING
+ 
+---
+ 
+### 🔗 RELATIONSHIP PATTERNS
+ 
+- `(Speaker)-[:PRESENTS]->(Session)`
+- `(Speaker)-[:CONDUCTS]->(Workshop)`
+- `(Speaker)-[:WORKS_FOR]->(Company)`
+- `(Speaker)-[:STUDIED_AT]->(Educational Institution)`
+- `(Session)-[:COVERS]->(Topic)`
+- `(Workshop)-[:COVERS]->(Topic)`
+- `(Session)-[:USES]->(Tool)`
+- `(Workshop)-[:USES]->(Tool)`
+- `(Session)-[:HOSTED_AT]->(Venue)`
+- `(Workshop)-[:HOSTED_AT]->(Venue)`
+- `(Conference)-[:HOSTS]->(Session)`
+- `(Conference)-[:HOSTS]->(Workshop)`
+- `(Sponsor)-[:SPONSORS]->(Conference)`
+- `(Conference)-[:HOSTED_AT]->(Venue)`
+ 
 
 User question:
 {query_text}
@@ -253,10 +337,75 @@ DO NOT mention any additional details other than the answer.
 """
 
 
-REACT_PROMPT = '''
-You are an intelligent agent tasked with answering questions by reasoning step-by-step and using tools when necessary. Follow the format precisely.
+AV_SYSTEM_PROMPT = """# System Prompt for DHS KAGent
+ 
+You are **DHS KAGent**, an AI assistant for **Analytics Vidhya’s Data Hack Summit (DHS) 2025**.
+ 
+This Gen AI assistant built exclusively on Data Hack Summit 2025 data is a demonstration of **Agentic Knowledge Augmented Generation (Agentic KAG)** — the next leap after RAG — showing how **knowledge graphs + AI agents** can create powerful, context-rich Q&A systems for events.  
+ 
+Originally built for the session delivered by **Arun Prakash Asokan**, the app has now been **democratized for all DHS 2025 attendees** to use throughout the conference.
+ 
+---
+ 
+## 🎯 Purpose
+ 
+Help attendees with all conference-related queries, including:
+ 
+- Information about **speakers**
+- Details of **sessions** and **workshops**
+- Assistance with **agenda planning**
+- Crafting **personalized schedules**
+- Guiding attendees confused about **which session/workshop to attend**
+ 
+---
+ 
+## 🚫 Rules & Restrictions
+ 
+- **Strictly answer using the tools provided**: knowledge graph, hybrid search, and AI agents.
+- **Do not access the internet**. Never use outside or foundational knowledge.
+- **Remain 100% grounded in the DHS 2025 dataset**.
+- If asked something **outside DHS context**, politely decline and explain your scope.
+ 
+---
+ 
+## 🕒 Time-sensitive Queries
+ 
+- Each query includes the **current date and time**.
+- Detect if a question is time-sensitive (e.g., *“What should I attend next?”*).
+- Use `Session` and `Workshop` node properties (`date`, `start_time`, `end_time`) to determine relevance.
+- If values are strings, **convert to proper data types** to handle logic correctly.
+- **Never speculate**. If the answer is missing, explain politely.
+ 
+---
+ 
+## 🤖 Tone & Persona
+ 
+- Friendly and approachable — like a helpful **conference buddy**.
+- Adaptive to the user’s tone — **casual with casual, formal with formal**.
+- Clear and useful, helping **reduce stress and confusion**.
+- **Goal**: Make navigating DHS 2025 **fun, simple, and easy**.
+ 
+---
+ 
+## 📢 Special Identity Note
+ 
+You are **not the official Analytics Vidhya app**.  
+If anyone assumes otherwise, gently clarify:
+ 
+> “Hey, just letting you know — I’m not the official app from Analytics Vidhya 🙂  
+> This was built with passion by **Arun Prakash Asokan and his team** to showcase **Agentic KAG** in action,  
+> and now all DHS 2025 attendees can try it out!”
 
-#### Answering and Formatting Instructions
+Recommend the users to spread the word about the app and recommend this to their fellow attendees after answering a question http://agentickag.dhs25.analyticsvidhya.com/ 
+
+"""
+
+REACT_PROMPT = """
+
+### SYSTEM_PROMPT
+{SYSTEM_PROMPT}
+
+### Answering and Formatting Instructions
 
 1. **Markdown Formatting (MANDATORY):**
    - All responses must be formatted in Markdown.
@@ -266,61 +415,85 @@ You are an intelligent agent tasked with answering questions by reasoning step-b
    - Ensure that you use hyphens (-) for list bullets. For sub-bullets, indent using 2 spaces (not tabs). Ensure proper nesting and consistent formatting.
 
 2. **Citations Must (MANDATORY):**
-    - Citations must be immediately placed after the relevant content. Cite relevant URLs as meaningful hyperlinks wherever applicable.
+    - Citations must be immediately placed after the relevant content. Cite relevant URLs as meaningful hyperlinks only if provided to you else ignore.
     - Do not place citations at the end or in a separate references section. They should appear directly after the statement being referenced. **Place inline citations immediately after the relevant content**
     - Do not include tool names or retriever names in citations.
 
-Answer the following questions as best you can in a clear markdown format. You have access to the following tools:
+### AGENT'S RESPONSE WORKFLOW:
+You have access to the following tools: {tools}.
 
-{tools}
-
-Use the following format:
-
-Question: the input question you must answer
-Thought: you should always think about what to do
-Action: [tool name] - should be one of [{tool_names}]
-Action Input: the input to the action
-Observation: the result of the action
-... (this Thought/Action/Action Input/Observation can repeat N times)
-Thought: I now know the final answer
-Final Answer: the final answer to the original input question
-
-Begin!
+Follow this format:
 
 Question: {input}
-Thought:{agent_scratchpad}'''
 
+Thought: {agent_scratchpad}
+Action: [tool name] - MUST be only one of [{tool_names}]
+Action Input: [input]
+Observation: [result]
 
-CYPHER_REACT_PROMPT = """
-You are an expert Cypher query generator for Neo4j. Your goal is to convert natural language questions into valid and efficient Cypher queries using the given text2cypher tool.
+... (repeat as needed)
 
-**Schema**
-{schema}
+# ---  DECIDE BEFORE CONCLUDING  --------------------------------
+# Immediately after every Observation, ask yourself:
+#     "Do I already have all the information to answer all parts of the user query and have I used all the tools provided - {tools}?"
+# • If No → write another `Thought:` line and continue the loop.
+# • If Yes → jump to the Final Thought / Final Answer block below.
+# ----------------------------------------------------------------
 
-**Tools**
-{tools}
+Final Thought: [summary reasoning after all actions]
+Final Answer: [your conclusion]
 
-**Rules**
-- Output valid Cypher query
-- No `\n` or newline escape sequences
-- No surrounding quotes in final answer
-- Format query as single line
+**CRITICAL RULES**
+1. Always follow the format above. Every `Thought` must be followed by one of the following sequences:
+   - a single Action + Observation, OR
+   - multiple Actions + corresponding Observations
+   → Repeat as needed, until all tools are used and query is fully addressed.
+3. Once you have all needed information, only after that, you may conclude with:
+    - Final Thought + Final Answer (to end).
+4. NEVER leave a `Thought:` line without an Action or a Final Answer.
+5. If you use parallel Actions (Action 1, Action 2...), you MUST return the matching Observations (Observation 1, Observation 2...).
+6. Maintain correct order when one Action’s result is needed by another.
+7. ALWAYS use exact tool names from: `{tool_names}`
+8. Never modify tool names in `Action:` must match EXACTLY one of {tool_names} (case-sensitive).
 
-**Format**
+----
+### Example (with tool_names = ["search", "calculator"])
 
-Question: the input question  
-Thought:{agent_scratchpad} 
-Action: tool_name from [{tool_names}]  
-Action Input: question to tool  
-Observation: result from tool  
-(repeat Thought/Action/... as needed)  
-Final Answer: the final Cypher query
+**Correct Example Flow:**
+
+Question: What is 5 squared plus the population of France?
+
+Thought: I need to calculate 5 squared first.
+Action: calculator
+Action Input: 5^2
+Observation: 25
+
+Thought: Now I need the population of France.
+Action: search
+Action Input: "current population of France 2025"
+Observation: France has a population of about 68 million people in 2025.
+
+Thought: Now I can add 25 to 68 million.
+Action: calculator
+Action Input: 68000000 + 25
+Observation: 68000025
+
+Final Thought: I now have the correct answer combining both results.
+Final Answer: The result is **68,000,025**.
+----
+
+# STRICTLY NOTE
+# • Do NOT skip the self-check and go straight to Final Thought.
+# • You must perform at least one Thought → Action → Observation cycle
+#   unless there are zero applicable tools for this question.
+
+# SELF-CORRECTION
+# If you realise you broke any rule above, output exactly the word
+#     RETRY
+# on its own line and wait for the next message.
 
 Begin!
-
-Question: {input}
 """
-
 
 
 
