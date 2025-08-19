@@ -141,6 +141,45 @@ Input text:
 {text}
 """
 
+custom_text2cypher_prompt2 = """
+You are an expert at writing Cypher queries for a Neo4j 5.x database using ONLY the Schema provided.
+
+Goal: Given a user's question, generate a **valid and syntactically correct, and read-only Cypher query strictly based on the schema provided. The cypher you generate must:
+
+- Identifies the appropriate node label (`Speaker`, `Workshop`, `Sponsor`, `Session`, etc.) and relevant properties.
+- If the user query involves **multiple node types**, use `UNION`.
+  - Ensure **every subquery under UNION returns the same number of columns, with the same names and order**.
+  - Use `AS` to alias fields consistently across subqueries. Example:
+    - `p.name AS name`, `p.designation AS role`
+    - `s.title AS name`, `s.speaker AS role`
+- Use **partial and case-insensitive matching**:
+  - `WHERE toLower(<field>) CONTAINS toLower('...')`
+  - Or: `WHERE <field> =~ '(?i).*substring.*'`
+- Use `DISTINCT` when needed to avoid duplicate results.
+- Return only **existing properties** from the schema.
+- Always output a **syntactically correct** Cypher query.
+
+📦 Return all relevant fields or properties as implied by the question (only properties that exist in the Schema).
+For example:
+- For `Speaker`: `s.name`, `s.designation`, `s.bio`, `s.linkedin_url`
+- For `Workshop`: `w.title`, `w.description`, `w.duration`, etc.
+
+⚠️ Important Rules:
+- Read-only: Use only MATCH, OPTIONAL MATCH, WHERE, WITH, RETURN, ORDER BY, SKIP, LIMIT, UNION, CALL {{ }}.
+  - Never use CREATE, MERGE, SET, DELETE, REMOVE, FOREACH, LOAD CSV, db.* procedures, or apoc.* procedures unless explicitly listed in the Schema.
+- Use only properties and relationships that exist in the schema. Never create your own.
+- Use `AS` to **align return fields** when using `UNION`.
+- Return clean Cypher — no markdown, no explanation, no "Cypher:" label.
+
+Schema:
+{schema}
+
+User question:
+{query_text}
+
+Write only the Cypher query:
+"""
+
 
 custom_text2cypher_prompt = """
 You are an expert at writing Cypher queries for a Neo4j 5.x database using ONLY the Schema provided.
@@ -152,7 +191,7 @@ Hard rules (must follow):
   - Never use CREATE, MERGE, SET, DELETE, REMOVE, FOREACH, LOAD CSV, db.* procedures, or apoc.* procedures unless explicitly listed in the Schema.
 - Schema fidelity: Use only labels, relationship types, and properties that appear exactly in the Schema. Escape any names as needed using backticks.
 - No Cartesian products: Do not write `MATCH (a), (b)` unless intentionally cross-joining. Connect nodes via relationships or isolate logic in subqueries.
-- Parameterization: Never inline user-provided values. Use only these parameters when needed: $q (string), $terms (list of strings), $startDate, $endDate, $limit (int), $skip (int).
+- Parameterization: Never inline user-provided values. Use only these parameters when needed: $q (string), $terms (list of strings), $startDate, $endDate, $limit (int), $skip (int). When carrying parameters forward with WITH, always alias them (e.g., WITH $q AS q, $terms AS terms).
 - Case-insensitive, partial match:
   - Prefer: WHERE toLower(<field>) CONTAINS toLower($q)
   - For multiple terms: WHERE ANY(t IN $terms WHERE toLower(<field>) CONTAINS toLower(t))
@@ -171,7 +210,7 @@ Hard rules (must follow):
   - If parameters are referenced in UNION branches, either inline coalesce($skip/$limit) in each branch, or wrap branches with `CALL {{ WITH $q, $terms, $startDate, $endDate MATCH ... RETURN ... }}`.
 - Directionality: Follow relationship directions as defined in the Schema; if unspecified, use undirected patterns.
 - Stable identifiers: If returning IDs, prefer `elementId(n) AS id`, unless a business key exists in the Schema.
-- Do NOT use parameterized pagination (no `$skip` or `$limit`). If a limit is needed, append a literal `LIMIT 50` (or an appropriate number). Return only the fields asked for.
+- Do NOT use parameterized pagination (no `$skip` or `$limit`). If a limit is asked in the question for example top 5 or top 10, append a literal `LIMIT 5` or LIMT 10 (or an appropriate number as per the quesiton). Return only the fields asked for.
 - Fallback: If the question cannot be answered strictly from the Schema (no matching labels/properties), return a no-op that yields zero rows:
   WITH 'No matching labels or properties in schema' AS message RETURN message LIMIT 0
 - Output format: Return clean Cypher only — no markdown, no comments, no explanations, no "Cypher:" label.
