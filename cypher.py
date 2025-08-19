@@ -68,8 +68,8 @@ projection_query = """
 YIELD graphName, nodeCount, relationshipCount;
  
 """
-local_search_query = """
-CALL db.index.vector.queryNodes('entities', $k, $embedding)
+local_search_query_github = """
+CALL db.index.vector.queryNodes('entity_vector_index', $k, $embedding)
 YIELD node, score
 WITH collect(node) as nodes
 WITH collect {
@@ -103,6 +103,17 @@ collect {
 RETURN {Chunks: text_mapping, Reports: report_mapping, 
        Relationships: insideRels, 
        Entities: entities} AS text
+"""
+
+local_search_query = """
+CALL db.index.vector.queryNodes('entity_vector_index', $k, $embedding)
+YIELD node, score
+WITH collect(node) as nodes
+RETURN {
+   Entities: [n IN nodes | {label: labels(n)[0], id: n.entity_id, name: n.name}],
+   Communities: [ (n)-[:IN_COMMUNITY]->(c:__Community__) | {entity: n.name, community: c.summary, title: c.title, rating: c.rating}],
+   Connections: [ (n)-[r]->(m) WHERE m IN nodes | {from: n.name, rel: type(r), to: m.name} ]
+} AS text
 """
 
 # Cypher to add entity_id where missing
