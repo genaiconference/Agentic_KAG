@@ -68,60 +68,14 @@ projection_query = """
 YIELD graphName, nodeCount, relationshipCount;
  
 """
-local_search_query_github = """
-CALL db.index.vector.queryNodes('entity_vector_index', $k, $embedding)
-YIELD node, score
-WITH collect(node) as nodes
-WITH collect {
-    UNWIND nodes as n
-    MATCH (n)<-[:HAS_ENTITY]->(c:__Chunk__)
-    WITH c, count(distinct n) as freq
-    RETURN c.text AS chunkText
-    ORDER BY freq DESC
-    LIMIT $topChunks
-} AS text_mapping,
-collect {
-    UNWIND nodes as n
-    MATCH (n)-[:IN_COMMUNITY]->(c:__Community__)
-    WITH c, c.rank as rank, c.weight AS weight
-    RETURN c.summary 
-    ORDER BY rank, weight DESC
-    LIMIT $topCommunities
-} AS report_mapping,
-collect {
-    UNWIND nodes as n
-    MATCH (n)-[r:SUMMARIZED_RELATIONSHIP]-(m) 
-    WHERE m IN nodes
-    RETURN r.summary AS descriptionText
-    ORDER BY r.rank, r.weight DESC 
-    LIMIT $topInsideRels
-} as insideRels,
-collect {
-    UNWIND nodes as n
-    RETURN n.summary AS descriptionText
-} as entities
-RETURN {Chunks: text_mapping, Reports: report_mapping, 
-       Relationships: insideRels, 
-       Entities: entities} AS text
-"""
 
-local_search_query_max = """
-CALL db.index.vector.queryNodes('entity_vector_index', $k, $embedding)
-YIELD node, score
-WITH collect(node) as nodes
-RETURN {
-   Entities: [n IN nodes | {label: labels(n)[0], id: n.entity_id, name: n.name}],
-   Communities: [ (n)-[:IN_COMMUNITY]->(c:__Community__) | {entity: n.name, community: c.summary, title: c.title, rating: c.rating}],
-   Connections: [ (n)-[r]->(m) WHERE m IN nodes | {from: n.name, rel: type(r), to: m.name} ]
-} AS text
-"""
 
 local_search_query = """
 CALL db.index.vector.queryNodes('entity_vector_index', $k, $embedding)
 YIELD node, score
 WITH collect(node)[0..20] as nodes   // only keep top 20 matched nodes
 RETURN {
-   Entities: [n IN nodes | {label: labels(n)[0], id: n.entity_id, name: n.name}],
+   Entities: [n IN nodes | {label: labels(n)[0], id: n.entity_id, name: n.name, title: n.title, bio: c.bio, description: c.description,}],
    Communities: [ (n)-[:IN_COMMUNITY]->(c:__Community__) | 
                   {entity: n.name, community: c.summary, title: c.title, rating: c.rating}][0..10],   // max 10 communities
    Connections: [ (n)-[r]->(m) WHERE m IN nodes | 
