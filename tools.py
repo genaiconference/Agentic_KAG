@@ -1,6 +1,7 @@
 from examples import examples
 from neo4j_graphrag.schema import get_schema
 from neo4j_graphrag.retrievers import HybridCypherRetriever, Text2CypherRetriever
+from neo4j_graphrag.retrievers import HybridRetriever
 from neo4j_graphrag.types import LLMMessage
 from neo4j_graphrag.types import RetrieverResultItem
 from neo4j_graphrag.message_history import InMemoryMessageHistory
@@ -64,7 +65,38 @@ FULLTEXT_INDEX_NAME = "entity_fulltext_index"
 DIMENSION = 1536
 
 # -------------------------------------------------------------------------------------------------- Define Hybrid Retrieval Tool -----------------------------------------------------------------------------------------------------------
+def get_rag_for_query_hybrid(query: str):
+    """
+    Wrapper to generate a Rag object dynamically for each query
+    """
+    hybrid_retriever = HybridRetriever(
+        driver=driver,
+        vector_index_name="entity_vector_index",
+        fulltext_index_name="entity_fulltext_index",
+        embedder=embedder,
+    ) 
 
+    custom_template = RagTemplate(template=prompts.rag_prompt,
+                                    expected_inputs=["context", "query_text"],
+                                )
+
+    rag_obj = GraphRAG(retriever=hybrid_retriever, llm=llm, prompt_template=custom_template)
+    
+    response = rag_obj.search(
+        query,
+        return_context=True,
+        retriever_config={'top_k': 20},
+        response_fallback="I can't answer this question without context"
+    )    
+    return response.answer
+
+av_hybrid_tool = Tool(
+    name="AVVectorRetrieval",
+    func=get_rag_for_query_hybrid,
+    description=(
+        "Choose this tool as a fallback when other tools fails. "
+    )
+)
 
 
 # -------------------------------------------------------------------------------------------------- Define Hybrid Cypher Retrieval Tool -----------------------------------------------------------------------------------------------------
@@ -101,10 +133,38 @@ def generate_cypher_query(query):
         examples=examples,
     )
     response = t2c_retriever.search(query_text=query)
+    print(cypher)
     return response.metadata['cypher']
 
 
-def get_rag_for_query(query: str):
+def get_rag_for_query_text2cypher(query: str):
+    """
+    Wrapper to generate a Rag object dynamically for each query
+    """
+    t2c_retriever = Text2CypherRetriever(
+        llm=llm,
+        neo4j_schema=get_schema(driver),
+        driver=driver,
+        custom_prompt=prompts.custom_text2cypher_prompt2,
+        examples=examples,
+    )
+
+    custom_template = RagTemplate(template=prompts.rag_prompt,
+                                    expected_inputs=["context", "query_text"],
+                                )
+
+    rag_obj = GraphRAG(retriever=t2c_retriever, llm=llm, prompt_template=custom_template)
+    
+    response = rag_obj.search(
+        query,
+        return_context=True,
+        retriever_config={'top_k': 20},
+        response_fallback="I can't answer this question without context"
+    )    
+    return response.answer
+
+
+def get_rag_for_query_hybrid_cypher(query: str):
     """
     Wrapper to generate a Rag object dynamically for each query
     """
@@ -112,7 +172,7 @@ def get_rag_for_query(query: str):
     FULLTEXT_INDEX_NAME = "entity_fulltext_index"
 
     cypher_query = generate_cypher_query(query)
-    hyb_retriever = HybridCypherRetriever(
+    hybrid_cypher_retriever = HybridCypherRetriever(
         driver=driver,
         vector_index_name=INDEX_NAME,
         fulltext_index_name=FULLTEXT_INDEX_NAME,
@@ -125,7 +185,7 @@ def get_rag_for_query(query: str):
                                     expected_inputs=["context", "query_text"],
                                 )
 
-    rag_obj = GraphRAG(retriever=hyb_retriever, llm=llm, prompt_template=custom_template)
+    rag_obj = GraphRAG(retriever=hybrid_cypher_retriever, llm=llm, prompt_template=custom_template)
     
     response = rag_obj.search(
         query,
@@ -136,9 +196,9 @@ def get_rag_for_query(query: str):
     return response.answer
 
 
-av_hybrid_tool = Tool(
+av_hybrid_cypher_tool = Tool(
     name="AVVectorRetrieval",
-    func=get_rag_for_query,
+    func=get_rag_for_query_hybrid_cypher,
     description=(
         "Choose this tool when the question needs structured graph search or entity-relational reasoning. "
     )
@@ -196,26 +256,34 @@ def get_community_data(rating_threshold: float = 5):
     print(f"Got {len(community_data)} community summaries")
     return community_data
 
+community_data = get_community_data()
+
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
 
 def global_retriever(query: str, community_data: list) -> str:
-  """Inside the loop, for each community, this line invokes the map_prompt_chain. 
-  The map_prompt_chain is a LangChain runnable that takes a dictionary as input. Here, it's being provided with the summary from the current community and the original query. 
-  This chain likely processes the community summary in the context of the query."""
-  intermediate_results = []
-  for community in tqdm(community_data, desc="Processing communities"):
-      result = map_prompt_chain.invoke({
-          "summary": community["summary"],
-          "query": query
-      })
-      intermediate_results.append(result)
+    intermediate_results = []
 
-  reduce_input = [{"query": query, "response": r.content if hasattr(r, 'content') else r} for r in intermediate_results]
-  final_result = reduce_prompt_chain.invoke(reduce_input)
-  answer = final_result.content if hasattr(final_result, 'content') else final_result
-  return answer
+    def process_community(community):
+        result = map_prompt_chain.invoke({
+            "summary": community["summary"],
+            "query": query
+        })
+        return result
 
-with open("community_data.pkl", "rb") as f:
-    community_data = pickle.load(f)
+    with ThreadPoolExecutor() as executor:
+        futures = [executor.submit(process_community, c) for c in community_data]
+        for f in tqdm(as_completed(futures), total=len(futures), desc="Processing communities in parallel"):
+            intermediate_results.append(f.result())
+
+    reduce_input = [
+        {"query": query, "response": r.content if hasattr(r, 'content') else r}
+        for r in intermediate_results
+    ]
+    final_result = reduce_prompt_chain.invoke(reduce_input)
+    answer = final_result.content if hasattr(final_result, 'content') else final_result
+    return answer
+
 
 global_retriever_tool = Tool(
     name="GlobalRetrieval",
