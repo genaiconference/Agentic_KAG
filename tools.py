@@ -10,6 +10,7 @@ import prompts
 import cypher
 import agent_utils
 import json
+import pickle
 from langchain_core.tools import tool
 from langchain_core.runnables import RunnableLambda
 from tqdm.auto import tqdm
@@ -23,9 +24,9 @@ import os
 
 load_dotenv()  # This loads .env at project root
 
-NEO4J_URI = os.getenv('NEO4J_URI')
-NEO4J_USERNAME = os.getenv('NEO4J_USERNAME')
-NEO4J_PASSWORD = os.getenv('NEO4J_PASSWORD')
+NEO4J_URI = os.getenv('AV_NEO4J_URL')
+NEO4J_USERNAME = os.getenv('AV_NEO4J_USERNAME')
+NEO4J_PASSWORD = os.getenv('AV_NEO4J_PASSWORD')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 # Set OPENAI_API_KEY as env variable for openai/neo4j-graphrag compatibility
@@ -59,43 +60,15 @@ embedder = OpenAIEmbeddings(
 
 INDEX_NAME = "entity_vector_index"
 FULLTEXT_INDEX_NAME = "entity_fulltext_index"
+
 DIMENSION = 1536
 
-
-# -------------------------------------------------------------------------------------- Define Text2Cypher Tool ------------------------------------------------------------------------------------------------------
-@tool("text2cypher_tool", description="Convert natural language query to Cypher.")
-def text2cypher_tool(query: str) -> str:
-    """Convert natural language query to Cypher."""
-    text2cypher = Text2CypherRetriever(
-        driver=driver,
-        llm=llm,
-        neo4j_schema=get_schema(driver),
-        custom_prompt=prompts.custom_text2cypher_prompt,
-        examples=examples
-    )
-    res = text2cypher.search(query)
-    return res.metadata['cypher']
+# -------------------------------------------------------------------------------------------------- Define Hybrid Retrieval Tool -----------------------------------------------------------------------------------------------------------
 
 
-def result_formatter_dynamic(record):
-    data = record.data()
-    if len(data) == 1 and isinstance(list(data.values())[0], dict):
-        node_props = dict(list(data.values())[0])
-    else:
-        node_props = dict(data)
-    content = "\n".join(f"{k}: {v}" for k, v in node_props.items())
-
-    return RetrieverResultItem(
-        content=content.strip(),
-        metadata={
-            "raw_properties": node_props,
-            "score": record.get("score"),
-            "node_keys": list(node_props.keys())
-        }
-    )
 
 # -------------------------------------------------------------------------------------------------- Define Hybrid Cypher Retrieval Tool -----------------------------------------------------------------------------------------------------
-import json
+
 
 def result_formatter_dynamic(record):
     data = record.data()
@@ -113,29 +86,31 @@ def result_formatter_dynamic(record):
             "node_keys": list(node_props.keys())
         }
     )
+
 
 def generate_cypher_query(query):
     """
-    Generate Cypher using the Text2Cypher tool
+    Generate Cypher using the Text2Cypher Retriever
+    
     """
-    cypher_agent = agent_utils.get_react_agent(
-        lang_llm,
-        [text2cypher_tool],
-        prompts.CYPHER_REACT_PROMPT,
-        verbose=True)
-
-    cypher_result = cypher_agent.invoke({
-        "input": query,
-        "schema": get_schema(driver)
-    })
-    cypher_query = cypher_result["output"].strip().strip("'\"")
-    return cypher_query
+    t2c_retriever = Text2CypherRetriever(
+        llm=llm,
+        neo4j_schema=get_schema(driver),
+        driver=driver,
+        custom_prompt=prompts.custom_text2cypher_prompt2,
+        examples=examples,
+    )
+    response = t2c_retriever.search(query_text=query)
+    return response.metadata['cypher']
 
 
 def get_rag_for_query(query: str):
     """
     Wrapper to generate a Rag object dynamically for each query
     """
+    INDEX_NAME = "entity_vector_index"
+    FULLTEXT_INDEX_NAME = "entity_fulltext_index"
+
     cypher_query = generate_cypher_query(query)
     hyb_retriever = HybridCypherRetriever(
         driver=driver,
@@ -154,15 +129,10 @@ def get_rag_for_query(query: str):
     
     response = rag_obj.search(
         query,
-        #message_history=history,
         return_context=True,
         retriever_config={'top_k': 20},
         response_fallback="I can't answer this question without context"
-    )
-    # Debug all context items
-    # for i, item in enumerate(response.retriever_result.items, 1):
-    #     print(f"🔎 Context Item {i}:\n📄 {item.content}\n📘 {item.metadata}\n---\n")
-    
+    )    
     return response.answer
 
 
@@ -170,12 +140,9 @@ av_hybrid_tool = Tool(
     name="AVVectorRetrieval",
     func=get_rag_for_query,
     description=(
-        "Automatically generates Cypher queries from a natural language question and retrieves knowledge. "
         "Choose this tool when the question needs structured graph search or entity-relational reasoning. "
-        "Input: a plain English question, e.g.: 'List all speakers at the conference.'"
     )
 )
-
 
 # ------------------------------------------------------------------------------------------------- Define Global Search Tool ---------------------------------------------------------------------------------------------------------
 
@@ -247,13 +214,13 @@ def global_retriever(query: str, community_data: list) -> str:
   answer = final_result.content if hasattr(final_result, 'content') else final_result
   return answer
 
-community_data = get_community_data()
+with open("community_data.pkl", "rb") as f:
+    community_data = pickle.load(f)
 
 global_retriever_tool = Tool(
     name="GlobalRetrieval",
     func=lambda query: global_retriever(query, community_data),
-    description=("Performs global semantic search over unstructured text (documents, paragraphs, etc). Choose this tool when a semantic search over all available documents is desired. Does not require a Cypher query. "
-                "Input should be the query string."
+    description=("Performs global semantic search over unstructured text (documents, paragraphs, etc). Choose this tool when a semantic search over all available documents is desired."
     )
 )
 
@@ -314,9 +281,7 @@ local_retriever_tool = Tool(
     name="LocalRetrieval",
     func=local_search,
             description=(
-                "Use this tool to perform a local search within the knowledge graph "
-                "to find specific information related to the query. Performs semantic search over a subset of documents (i.e., a specific section or context). Use this when the query is limited to a smaller scope. Does not require a Cypher query."
-                "Input should be the query string."
+                "Use this tool to perform a local search within the knowledge graph to find specific information related to the query. Performs semantic search over a subset of documents (i.e., a specific section or context). Use this tool when the query is limited to a smaller scope."
             ),
         )
 
