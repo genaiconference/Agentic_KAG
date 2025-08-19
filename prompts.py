@@ -393,7 +393,13 @@ REACT_PROMPT = """
     - Do not include tool names or retriever names in citations.
 
 ### AGENT'S RESPONSE WORKFLOW:
-You have access to the following tools: {tools}.
+You have access to the following tools: {tools}. 
+
+Fallback Option-1:
+Use 'LocalSearch' tool
+
+Fallback Option-2:
+'AVHybrid' tool (to be invoked if LocalSearch fails)
 
 Follow this format:
 
